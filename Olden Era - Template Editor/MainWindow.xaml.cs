@@ -1103,21 +1103,12 @@ namespace Olden_Era___Template_Editor
             MarkDirty();
             Validate();
         }
-
         private bool _advancedZoneSettings = false;
 
         private void BtnAdvancedZoneSettings_Click(object sender, RoutedEventArgs e)
         {
             if (!IsInitialized) return;
             _advancedZoneSettings = ChkAdvancedZoneSettings.IsChecked == true;
-            if (_advancedZoneSettings && TotalAdvancedNeutralZonesFromSliders() == 0 && (int)SldNeutral.Value > 0)
-            {
-                if ((int)SldNeutralCastles.Value > 0)
-                    SldNeutralMediumCastle.Value = SldNeutral.Value;
-                else
-                    SldNeutralMediumNoCastle.Value = SldNeutral.Value;
-            }
-
             UpdateAdvancedZoneSettingsVisibility();
             UpdateValueLabels();
             MarkDirty();
@@ -1144,10 +1135,12 @@ namespace Olden_Era___Template_Editor
         {
             if (PnlAdvancedNeutralZones == null) return;
             bool advanced = _advancedZoneSettings;
-            PnlAdvancedNeutralZones.Visibility = advanced ? Visibility.Visible : Visibility.Collapsed;
+            // Neutral zone quality panels are always visible — advanced mode is always used for zone generation.
+            PnlAdvancedNeutralZones.Visibility = Visibility.Visible;
+            PnlSimpleNeutralCountLabel.Visibility = Visibility.Collapsed;
+            SldNeutral.Visibility = Visibility.Collapsed;
+            // Zone size / guard tuning remain gated by the Advanced settings checkbox.
             PnlAdvancedZoneSizes.Visibility = advanced ? Visibility.Visible : Visibility.Collapsed;
-            PnlSimpleNeutralCountLabel.Visibility = advanced ? Visibility.Collapsed : Visibility.Visible;
-            SldNeutral.Visibility = advanced ? Visibility.Collapsed : Visibility.Visible;
             if (ChkAdvancedZoneSettings != null)
                 ChkAdvancedZoneSettings.IsChecked = advanced;
         }
@@ -1648,12 +1641,33 @@ namespace Olden_Era___Template_Editor
             SldNeutral.Value        = s.NeutralZoneCount;
             SldPlayerCastles.Value  = s.PlayerZoneCastles;
             SldNeutralCastles.Value = s.NeutralZoneCastles;
-            SldNeutralLowNoCastle.Value = s.NeutralLowNoCastleCount;
-            SldNeutralLowCastle.Value = s.NeutralLowCastleCount;
-            SldNeutralMediumNoCastle.Value = s.NeutralMediumNoCastleCount;
-            SldNeutralMediumCastle.Value = s.NeutralMediumCastleCount;
-            SldNeutralHighNoCastle.Value = s.NeutralHighNoCastleCount;
-            SldNeutralHighCastle.Value = s.NeutralHighCastleCount;
+
+            // Legacy compatibility: if the settings were saved with Advanced mode disabled,
+            // the neutral zones were all stored as a single count in NeutralZoneCount.
+            // Convert them to medium-quality neutrals with castles (or without, if NeutralZoneCastles was 0).
+            int legacyLowNoCastle    = s.NeutralLowNoCastleCount;
+            int legacyLowCastle      = s.NeutralLowCastleCount;
+            int legacyMedNoCastle    = s.NeutralMediumNoCastleCount;
+            int legacyMedCastle      = s.NeutralMediumCastleCount;
+            int legacyHighNoCastle   = s.NeutralHighNoCastleCount;
+            int legacyHighCastle     = s.NeutralHighCastleCount;
+            if (!s.AdvancedMode && s.NeutralZoneCount > 0
+                && legacyLowNoCastle == 0 && legacyLowCastle == 0
+                && legacyMedNoCastle == 0 && legacyMedCastle == 0
+                && legacyHighNoCastle == 0 && legacyHighCastle == 0)
+            {
+                if (s.NeutralZoneCastles > 0)
+                    legacyMedCastle = s.NeutralZoneCount;
+                else
+                    legacyMedNoCastle = s.NeutralZoneCount;
+            }
+
+            SldNeutralLowNoCastle.Value    = legacyLowNoCastle;
+            SldNeutralLowCastle.Value      = legacyLowCastle;
+            SldNeutralMediumNoCastle.Value = legacyMedNoCastle;
+            SldNeutralMediumCastle.Value   = legacyMedCastle;
+            SldNeutralHighNoCastle.Value   = legacyHighNoCastle;
+            SldNeutralHighCastle.Value     = legacyHighCastle;
             ChkMatchPlayerCastleFactions.IsChecked = s.MatchPlayerCastleFactions;
             SldMinNeutralBetweenPlayers.Value = s.MinNeutralZonesBetweenPlayers;
             SldPlayerZoneSize.Value = Math.Clamp(s.PlayerZoneSize, 0.1, 2.0);

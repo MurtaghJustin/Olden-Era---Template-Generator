@@ -167,20 +167,12 @@ namespace Olden_Era___Template_Editor.Services
                 }
             }
 
-            if (settings.ZoneCfg.Advanced.Enabled)
-            {
-                Add(settings.ZoneCfg.Advanced.NeutralLowNoCastleCount, NeutralZoneQuality.Low, 0);
-                Add(settings.ZoneCfg.Advanced.NeutralLowCastleCount, NeutralZoneQuality.Low, castleZoneCastleCount);
-                Add(settings.ZoneCfg.Advanced.NeutralMediumNoCastleCount, NeutralZoneQuality.Medium, 0);
-                Add(settings.ZoneCfg.Advanced.NeutralMediumCastleCount, NeutralZoneQuality.Medium, castleZoneCastleCount);
-                Add(settings.ZoneCfg.Advanced.NeutralHighNoCastleCount, NeutralZoneQuality.High, 0);
-                Add(settings.ZoneCfg.Advanced.NeutralHighCastleCount, NeutralZoneQuality.High, castleZoneCastleCount);
-            }
-            else
-            {
-                int castleCount = Math.Clamp(settings.ZoneCfg.NeutralZoneCastles, 0, 4);
-                Add(settings.ZoneCfg.NeutralZoneCount, NeutralZoneQuality.Medium, castleCount);
-            }
+            Add(settings.ZoneCfg.Advanced.NeutralLowNoCastleCount, NeutralZoneQuality.Low, 0);
+            Add(settings.ZoneCfg.Advanced.NeutralLowCastleCount, NeutralZoneQuality.Low, castleZoneCastleCount);
+            Add(settings.ZoneCfg.Advanced.NeutralMediumNoCastleCount, NeutralZoneQuality.Medium, 0);
+            Add(settings.ZoneCfg.Advanced.NeutralMediumCastleCount, NeutralZoneQuality.Medium, castleZoneCastleCount);
+            Add(settings.ZoneCfg.Advanced.NeutralHighNoCastleCount, NeutralZoneQuality.High, 0);
+            Add(settings.ZoneCfg.Advanced.NeutralHighCastleCount, NeutralZoneQuality.High, castleZoneCastleCount);
 
             if (settings.Topology == MapTopology.SharedWeb && plans.Count == 0 && maxNeutralZones > 0)
             {
