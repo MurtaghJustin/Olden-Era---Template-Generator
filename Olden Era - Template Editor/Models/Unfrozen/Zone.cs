@@ -24,6 +24,14 @@ namespace OldenEraTemplateEditor.Models
         [JsonIgnore]
         public int? GeneratorRing { get; set; }
 
+        /// <summary>
+        /// Optional editor-only zone classification used by the preview and graph editor
+        /// when a template has custom zone names that no longer follow Spawn/Neutral/Hub
+        /// naming conventions.
+        /// </summary>
+        [JsonIgnore]
+        public string? EditorZoneType { get; set; }
+
         [JsonPropertyName("size")]
         public double? Size { get; set; }
 

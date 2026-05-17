@@ -187,9 +187,9 @@ namespace Olden_Era___Template_Editor.Services
 
             // Draw zone circles — non-player zones first, then spawn zones on top
             // so the castle-count badge is never obscured by an adjacent circle.
-            foreach (Zone zone in orderedZones.Where(z => !z.Name.StartsWith("Spawn-", StringComparison.Ordinal)))
+            foreach (Zone zone in orderedZones.Where(z => !IsSpawnZone(z)))
                 DrawZone(dc, zone, positions[zone.Name]);
-            foreach (Zone zone in orderedZones.Where(z => z.Name.StartsWith("Spawn-", StringComparison.Ordinal)))
+            foreach (Zone zone in orderedZones.Where(IsSpawnZone))
                 DrawZone(dc, zone, positions[zone.Name], playerIcon: isTournamentSingleCluster);
         }
 
@@ -1978,10 +1978,9 @@ namespace Olden_Era___Template_Editor.Services
 
         private static void DrawZone(DrawingContext dc, Zone zone, Point pt, bool playerIcon = false)
         {
-            bool isSpawn    = zone.Name.StartsWith("Spawn-",   StringComparison.Ordinal);
-            bool isHub      = string.Equals(zone.Name, "Hub",  StringComparison.Ordinal)
-                           || zone.Name.StartsWith("Hub-",     StringComparison.Ordinal);
-            bool isNeutral  = zone.Name.StartsWith("Neutral-", StringComparison.Ordinal);
+            bool isSpawn    = IsSpawnZone(zone);
+            bool isHub      = IsHubZone(zone);
+            bool isNeutral  = IsNeutralZone(zone);
             bool isHoldCity = IsHoldCityZone(zone);
             int  castles    = CastleCount(zone);
 
@@ -2040,6 +2039,29 @@ namespace Olden_Era___Template_Editor.Services
 
         private static bool IsHoldCityZone(Zone zone) =>
             zone.MainObjects?.Any(o => o.HoldCityWinCon == true) == true;
+
+        private static bool IsSpawnZone(Zone zone)
+        {
+            if (string.Equals(zone.EditorZoneType, "Player", StringComparison.Ordinal))
+                return true;
+            return zone.MainObjects?.Any(o => o.Type == "Spawn") == true
+                || zone.Name.StartsWith("Spawn-", StringComparison.Ordinal);
+        }
+
+        private static bool IsHubZone(Zone zone)
+        {
+            if (string.Equals(zone.EditorZoneType, "Hub", StringComparison.Ordinal))
+                return true;
+            return string.Equals(zone.Name, "Hub", StringComparison.Ordinal)
+                || zone.Name.StartsWith("Hub-", StringComparison.Ordinal);
+        }
+
+        private static bool IsNeutralZone(Zone zone)
+        {
+            if (zone.EditorZoneType is "NeutralLow" or "NeutralMedium" or "NeutralHigh")
+                return true;
+            return !IsSpawnZone(zone) && !IsHubZone(zone);
+        }
 
         // ── Hold-city icon (big golden house) ────────────────────────────────────
         // Drawn centred in the zone circle; a star/crown badge marks it as the target.

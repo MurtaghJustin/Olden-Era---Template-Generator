@@ -69,6 +69,7 @@ namespace Olden_Era___Template_Editor.Models
         [JsonPropertyName("mediumNeutralMandatoryContent")] public List<ContentItem>? MediumNeutralMandatoryContent { get; set; }
         [JsonPropertyName("highNeutralMandatoryContent")] public List<ContentItem>? HighNeutralMandatoryContent { get; set; }
         [JsonPropertyName("hubZoneMandatoryContent")] public List<ContentItem>? HubZoneMandatoryContent { get; set; }
+        [JsonPropertyName("manualGraph")] public ManualGraphDocument ManualGraph { get; set; } = new ManualGraphDocument();
 
         // Legacy setting from v0.2 and earlier; when present, it seeds both split density sliders.
         [JsonPropertyName("contentDensity")]    public int?    ContentDensityPercent        { get; set; }

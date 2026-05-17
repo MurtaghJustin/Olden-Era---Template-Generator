@@ -4,6 +4,7 @@ using Olden_Era___Template_Editor.Services;
 using OldenEraTemplateEditor.Models;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using OldenEraTemplateEditor.Services.ContentManagement;
@@ -13,6 +14,11 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using EllipseShape = System.Windows.Shapes.Ellipse;
+using LineShape = System.Windows.Shapes.Line;
+using TemplateOrientation = OldenEraTemplateEditor.Models.Orientation;
 
 namespace Olden_Era___Template_Editor
 {
@@ -49,6 +55,16 @@ namespace Olden_Era___Template_Editor
         private ZoneMandatoryContent _mediumNeutralMandatoryContent = new();
         private ZoneMandatoryContent _highNeutralMandatoryContent = new();
         private ZoneMandatoryContent _hubZoneMandatoryContent = new();
+        private ManualGraphDocument _manualGraph = new();
+        private string? _selectedGraphZoneId;
+        private string? _selectedGraphConnectionId;
+        private Dictionary<string, Point> _graphLayout = new(StringComparer.Ordinal);
+        private string? _graphDragStartZoneId;
+        private LineShape? _graphDragPreviewLine;
+        private bool _suppressGraphInspectorEvents;
+        private bool _graphValidationHasErrors;
+        private bool _suppressTopologySelectionChanged;
+        private int _lastTopologyIndex;
 
         private static readonly (MapTopology Topology, string Label, string Description)[] TopologyOptions =
         [
@@ -83,6 +99,7 @@ namespace Olden_Era___Template_Editor
             CmbVictory.SelectedIndex = 0; // Classic (win_condition_1)
             CmbTopology.ItemsSource = TopologyOptions.Select(t => t.Label).ToList();
             CmbTopology.SelectedIndex = 0; // Random is first
+            _lastTopologyIndex = CmbTopology.SelectedIndex;
             UpdateValueLabels();
             UpdateAdvancedZoneSettingsVisibility();
             UpdatePlayerCastleFactionVisibility();
@@ -98,6 +115,22 @@ namespace Olden_Era___Template_Editor
             InitializeDefaultMediumNeutralContents();
             InitializeDefaultHighNeutralContents();
             InitializeDefaultHubZoneContents();
+            CmbGraphAddZoneType.ItemsSource = Enum.GetValues<ManualGraphZoneType>();
+            CmbGraphAddZoneType.SelectedItem = ManualGraphZoneType.NeutralMedium;
+            CmbGraphZoneType.ItemsSource = Enum.GetValues<ManualGraphZoneType>();
+            CmbGraphConnectionType.ItemsSource = Enum.GetValues<ManualGraphConnectionType>();
+            CmbGraphConnectionType.SelectedItem = ManualGraphConnectionType.Direct;
+            CmbGraphConnectionTypeInspector.ItemsSource = Enum.GetValues<ManualGraphConnectionType>();
+            CmbGraphGuardMode.ItemsSource = Enum.GetValues<ManualGraphGuardMode>();
+            CmbGraphZoneLayout.ItemsSource = new[]
+            {
+                "zone_layout_spawns",
+                "zone_layout_sides",
+                "zone_layout_treasure_zone",
+                "zone_layout_center"
+            };
+            GraphCanvas.MouseMove += GraphCanvas_MouseMove;
+            GraphCanvas.MouseLeftButtonUp += GraphCanvas_MouseLeftButtonUp;
             DataContext = new
             {
                 MineContentItems = _playerZoneMandatoryContent.mines,
@@ -135,6 +168,7 @@ namespace Olden_Era___Template_Editor
             _ = CheckForUpdateAsync(version);
 
             TxtTemplateName.TextChanged += (_, _) => { MarkDirtyNameOnly(); Validate(); };
+            PreviewKeyDown += MainWindow_PreviewKeyDown;
             UpdateTitle();
             TxtWindowTitle.Text = Title;
         }
@@ -591,7 +625,7 @@ namespace Olden_Era___Template_Editor
             bool outdated = _templateOutdated && _generatedTemplate is not null;
             TxtOutdatedWarning.Visibility = outdated ? Visibility.Visible : Visibility.Hidden;
             if (BtnSaveGenerated != null)
-                BtnSaveGenerated.IsEnabled = _generatedTemplate is not null && !outdated;
+                BtnSaveGenerated.IsEnabled = _generatedTemplate is not null && !outdated && !_graphValidationHasErrors;
         }
 
         private void UpdateTitle()
@@ -604,6 +638,646 @@ namespace Olden_Era___Template_Editor
                 : $"{_baseTitle}  —  {file}";
             Title = full;
             if (IsInitialized) TxtWindowTitle.Text = full;
+        }
+
+        private static ManualGraphDocument CloneManualGraph(ManualGraphDocument? graph)
+        {
+            if (graph == null)
+                return new ManualGraphDocument();
+
+            return new ManualGraphDocument
+            {
+                Enabled = graph.Enabled,
+                Zones = graph.Zones.Select(zone => new ManualGraphZone
+                {
+                    Id = zone.Id,
+                    Name = zone.Name,
+                    ZoneType = zone.ZoneType,
+                    Layout = zone.Layout,
+                    CastleCount = zone.CastleCount,
+                    Size = zone.Size
+                }).ToList(),
+                Connections = graph.Connections.Select(connection => new ManualGraphConnection
+                {
+                    Id = connection.Id,
+                    Name = connection.Name,
+                    FromZoneId = connection.FromZoneId,
+                    ToZoneId = connection.ToZoneId,
+                    ConnectionType = connection.ConnectionType,
+                    GuardMode = connection.GuardMode,
+                    GuardScale = connection.GuardScale,
+                    GuardValue = connection.GuardValue,
+                    GuardZoneId = connection.GuardZoneId,
+                    GuardEscape = connection.GuardEscape,
+                    SimTurnSquad = connection.SimTurnSquad,
+                    GuardWeeklyIncrement = connection.GuardWeeklyIncrement,
+                    GuardMatchGroup = connection.GuardMatchGroup,
+                    Road = connection.Road,
+                    GatePlacement = connection.GatePlacement,
+                    Length = connection.Length,
+                    PortalPlacementRulesFrom = CloneRules(connection.PortalPlacementRulesFrom),
+                    PortalPlacementRulesTo = CloneRules(connection.PortalPlacementRulesTo)
+                }).ToList()
+            };
+        }
+
+        private static List<ContentPlacementRule>? CloneRules(List<ContentPlacementRule>? rules)
+        {
+            if (rules == null)
+                return null;
+
+            return rules.Select(rule => new ContentPlacementRule
+            {
+                Type = rule.Type,
+                Args = rule.Args != null ? [.. rule.Args] : null,
+                TargetMin = rule.TargetMin,
+                TargetMax = rule.TargetMax,
+                Weight = rule.Weight
+            }).ToList();
+        }
+
+        private void SyncGraphUiFromDocument()
+        {
+            if (ChkGraphEditMode == null)
+                return;
+
+            ChkGraphEditMode.IsChecked = _manualGraph.Enabled;
+            PnlGraphEditor.Visibility = _manualGraph.Enabled ? Visibility.Visible : Visibility.Collapsed;
+            _selectedGraphZoneId = null;
+            _selectedGraphConnectionId = null;
+            PopulateGraphGuardZoneCombo();
+            UpdateGraphInspector();
+        }
+
+        private void EnsureGraphDocumentSeededFromCurrentState()
+        {
+            if (_manualGraph.Zones.Count > 0)
+                return;
+
+            RmgTemplate sourceTemplate;
+            if (_generatedTemplate != null && !_templateOutdated)
+            {
+                sourceTemplate = _generatedTemplate;
+            }
+            else
+            {
+                var seedSettings = BuildSettings();
+                seedSettings.ManualGraph = new ManualGraphDocument();
+                sourceTemplate = TemplateGenerator.Generate(seedSettings);
+            }
+
+            _manualGraph = ManualGraphService.CreateFromTemplate(sourceTemplate, preferAutomaticGuards: true);
+            _manualGraph.Enabled = true;
+        }
+
+        private void ResetManualGraphFromCurrentSettings()
+        {
+            ManualGraphDocument originalGraph = _manualGraph;
+            _manualGraph = new ManualGraphDocument();
+            var seedSettings = BuildSettings();
+            _manualGraph = originalGraph;
+            seedSettings.ManualGraph = new ManualGraphDocument();
+            var sourceTemplate = TemplateGenerator.Generate(seedSettings);
+            _manualGraph = ManualGraphService.CreateFromTemplate(sourceTemplate, preferAutomaticGuards: true);
+            _manualGraph.Enabled = true;
+            _selectedGraphZoneId = null;
+            _selectedGraphConnectionId = null;
+            PopulateGraphGuardZoneCombo();
+            RenderGraphEditor();
+            Validate();
+            MarkDirty();
+        }
+
+        private void ChkGraphEditMode_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!IsInitialized) return;
+
+            bool enabled = ChkGraphEditMode.IsChecked == true;
+            if (enabled)
+                EnsureGraphDocumentSeededFromCurrentState();
+            _manualGraph.Enabled = enabled;
+            PnlGraphEditor.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+            _selectedGraphZoneId = null;
+            _selectedGraphConnectionId = null;
+            PopulateGraphGuardZoneCombo();
+            RenderGraphEditor();
+            Validate();
+            MarkDirty();
+        }
+
+        private void BtnGraphResetFromTopology_Click(object sender, RoutedEventArgs e)
+        {
+            var result = MessageBox.Show(
+                "Reset the manual graph from the current layout settings? This will replace the existing graph structure.",
+                "Reset Graph",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (result != MessageBoxResult.Yes)
+                return;
+
+            ResetManualGraphFromCurrentSettings();
+        }
+
+        private void BtnGraphAutoArrange_Click(object sender, RoutedEventArgs e)
+        {
+            RenderGraphEditor();
+        }
+
+        private void BtnGraphAddZone_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_manualGraph.Enabled)
+                return;
+
+            if (CmbGraphAddZoneType.SelectedItem is not ManualGraphZoneType zoneType)
+                return;
+
+            if (zoneType == ManualGraphZoneType.Hub
+                && _manualGraph.Zones.Any(zone => zone.ZoneType == ManualGraphZoneType.Hub))
+            {
+                MessageBox.Show("Only one hub zone is allowed.", "Graph Editor", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var newZone = new ManualGraphZone
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Name = ManualGraphService.SuggestZoneName(_manualGraph, zoneType),
+                ZoneType = zoneType,
+                Layout = ManualGraphService.DefaultLayoutFor(zoneType),
+                CastleCount = zoneType == ManualGraphZoneType.Player ? 1 : 0,
+                Size = 1.0
+            };
+            _manualGraph.Zones.Add(newZone);
+            _selectedGraphZoneId = newZone.Id;
+            _selectedGraphConnectionId = null;
+            PopulateGraphGuardZoneCombo();
+            RenderGraphEditor();
+            Validate();
+            MarkDirty();
+        }
+
+        private void RenderGraphEditor()
+        {
+            if (GraphCanvas == null)
+                return;
+
+            GraphCanvas.Children.Clear();
+            _graphDragPreviewLine = null;
+
+            if (!_manualGraph.Enabled || _manualGraph.Zones.Count == 0)
+            {
+                UpdateGraphInspector();
+                return;
+            }
+
+            _graphLayout = ComputeGraphLayout();
+            var zonesById = _manualGraph.Zones.ToDictionary(zone => zone.Id, StringComparer.Ordinal);
+
+            foreach (ManualGraphConnection connection in _manualGraph.Connections)
+            {
+                if (!_graphLayout.TryGetValue(connection.FromZoneId, out Point fromPoint)) continue;
+                if (!_graphLayout.TryGetValue(connection.ToZoneId, out Point toPoint)) continue;
+
+                var hitLine = new LineShape
+                {
+                    X1 = fromPoint.X,
+                    Y1 = fromPoint.Y,
+                    X2 = toPoint.X,
+                    Y2 = toPoint.Y,
+                    Stroke = Brushes.Transparent,
+                    StrokeThickness = 12,
+                    Tag = connection.Id
+                };
+                hitLine.MouseLeftButtonDown += GraphConnection_MouseLeftButtonDown;
+                GraphCanvas.Children.Add(hitLine);
+
+                var visibleLine = new LineShape
+                {
+                    X1 = fromPoint.X,
+                    Y1 = fromPoint.Y,
+                    X2 = toPoint.X,
+                    Y2 = toPoint.Y,
+                    Stroke = connection.ConnectionType == ManualGraphConnectionType.Portal
+                        ? new SolidColorBrush(Color.FromRgb(91, 159, 214))
+                        : new SolidColorBrush(Color.FromRgb(201, 166, 94)),
+                    StrokeThickness = _selectedGraphConnectionId == connection.Id ? 4 : 2.5,
+                    IsHitTestVisible = false
+                };
+                GraphCanvas.Children.Add(visibleLine);
+            }
+
+            foreach (ManualGraphZone zone in _manualGraph.Zones)
+            {
+                if (!_graphLayout.TryGetValue(zone.Id, out Point position))
+                    continue;
+
+                double radius = GraphZoneRadius(zone);
+                var ellipse = new EllipseShape
+                {
+                    Width = radius * 2,
+                    Height = radius * 2,
+                    StrokeThickness = _selectedGraphZoneId == zone.Id ? 4 : 2,
+                    Fill = new SolidColorBrush(GraphZoneFill(zone.ZoneType)),
+                    Stroke = new SolidColorBrush(GraphZoneStroke(zone.ZoneType)),
+                    Tag = zone.Id
+                };
+                Canvas.SetLeft(ellipse, position.X - radius);
+                Canvas.SetTop(ellipse, position.Y - radius);
+                ellipse.MouseLeftButtonDown += GraphZone_MouseLeftButtonDown;
+                ellipse.MouseLeftButtonUp += GraphZone_MouseLeftButtonUp;
+                GraphCanvas.Children.Add(ellipse);
+
+                var text = new TextBlock
+                {
+                    Text = zone.Name,
+                    Foreground = Brushes.White,
+                    FontWeight = FontWeights.SemiBold,
+                    IsHitTestVisible = false
+                };
+                text.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                Canvas.SetLeft(text, position.X - text.DesiredSize.Width / 2);
+                Canvas.SetTop(text, position.Y - text.DesiredSize.Height / 2);
+                GraphCanvas.Children.Add(text);
+            }
+
+            UpdateGraphInspector();
+        }
+
+        private Dictionary<string, Point> ComputeGraphLayout()
+        {
+            var template = new RmgTemplate
+            {
+                Variants =
+                [
+                    new Variant
+                    {
+                        Orientation = new TemplateOrientation
+                        {
+                            ZeroAngleZone = _manualGraph.Zones.FirstOrDefault(zone => zone.ZoneType == ManualGraphZoneType.Player)?.Name
+                                ?? _manualGraph.Zones.First().Name
+                        },
+                        Zones = _manualGraph.Zones.Select(zone => new Zone
+                        {
+                            Name = zone.Name,
+                            Layout = zone.Layout,
+                            EditorZoneType = zone.ZoneType.ToString()
+                        }).ToList(),
+                        Connections = _manualGraph.Connections
+                            .Where(connection =>
+                                _manualGraph.Zones.Any(zone => zone.Id == connection.FromZoneId)
+                                && _manualGraph.Zones.Any(zone => zone.Id == connection.ToZoneId)
+                                && connection.FromZoneId != connection.ToZoneId)
+                            .Select(connection => new Connection
+                            {
+                                Name = connection.Name ?? connection.Id,
+                                From = _manualGraph.Zones.First(zone => zone.Id == connection.FromZoneId).Name,
+                                To = _manualGraph.Zones.First(zone => zone.Id == connection.ToZoneId).Name,
+                                ConnectionType = connection.ConnectionType == ManualGraphConnectionType.Portal ? "Portal" : "Direct"
+                            }).ToList()
+                    }
+                ]
+            };
+
+            Dictionary<string, Point> positionsByName = TemplatePreviewPngWriter.ComputeLayout(template, MapTopology.Random);
+            return _manualGraph.Zones
+                .Where(zone => positionsByName.ContainsKey(zone.Name))
+                .ToDictionary(zone => zone.Id, zone => positionsByName[zone.Name], StringComparer.Ordinal);
+        }
+
+        private static Color GraphZoneFill(ManualGraphZoneType zoneType) => zoneType switch
+        {
+            ManualGraphZoneType.Player => Color.FromRgb(42, 90, 50),
+            ManualGraphZoneType.NeutralLow => Color.FromRgb(101, 67, 33),
+            ManualGraphZoneType.NeutralHigh => Color.FromRgb(120, 90, 20),
+            ManualGraphZoneType.Hub => Color.FromRgb(55, 80, 95),
+            _ => Color.FromRgb(72, 76, 80)
+        };
+
+        private static Color GraphZoneStroke(ManualGraphZoneType zoneType) => zoneType switch
+        {
+            ManualGraphZoneType.Player => Color.FromRgb(100, 200, 120),
+            ManualGraphZoneType.NeutralLow => Color.FromRgb(205, 127, 50),
+            ManualGraphZoneType.NeutralHigh => Color.FromRgb(255, 210, 50),
+            ManualGraphZoneType.Hub => Color.FromRgb(130, 180, 200),
+            _ => Color.FromRgb(192, 192, 192)
+        };
+
+        private static double GraphZoneRadius(ManualGraphZone zone) =>
+            zone.ZoneType == ManualGraphZoneType.Hub
+                ? 30 + ((Math.Clamp(zone.Size, 0.25, 3.0) - 1.0) * 8)
+                : 24 + ((Math.Clamp(zone.Size, 0.25, 3.0) - 1.0) * 6);
+
+        private void GraphZone_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement { Tag: string zoneId })
+                return;
+
+            _graphDragStartZoneId = zoneId;
+            _selectedGraphZoneId = zoneId;
+            _selectedGraphConnectionId = null;
+            RenderGraphEditor();
+            Point pt = e.GetPosition(GraphCanvas);
+            _graphDragPreviewLine = new LineShape
+            {
+                X1 = pt.X,
+                Y1 = pt.Y,
+                X2 = pt.X,
+                Y2 = pt.Y,
+                Stroke = new SolidColorBrush(Color.FromArgb(180, 230, 230, 230)),
+                StrokeDashArray = [4, 4],
+                StrokeThickness = 2,
+                IsHitTestVisible = false
+            };
+            GraphCanvas.Children.Add(_graphDragPreviewLine);
+            UpdateGraphInspector();
+            e.Handled = true;
+        }
+
+        private void GraphCanvas_MouseMove(object? sender, MouseEventArgs e)
+        {
+            if (_graphDragStartZoneId == null || _graphDragPreviewLine == null)
+                return;
+
+            Point pt = e.GetPosition(GraphCanvas);
+            _graphDragPreviewLine.X2 = pt.X;
+            _graphDragPreviewLine.Y2 = pt.Y;
+        }
+
+        private void GraphZone_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement { Tag: string targetZoneId })
+                return;
+
+            if (_graphDragStartZoneId != null && _graphDragStartZoneId != targetZoneId)
+            {
+                var connectionType = CmbGraphConnectionType.SelectedItem is ManualGraphConnectionType type
+                    ? type
+                    : ManualGraphConnectionType.Direct;
+                _manualGraph.Connections.Add(new ManualGraphConnection
+                {
+                    Id = Guid.NewGuid().ToString("N"),
+                    FromZoneId = _graphDragStartZoneId,
+                    ToZoneId = targetZoneId,
+                    ConnectionType = connectionType,
+                    GuardMode = ManualGraphGuardMode.Auto,
+                    GuardScale = 1.0
+                });
+                PopulateGraphGuardZoneCombo();
+                MarkDirty();
+                Validate();
+            }
+
+            _graphDragStartZoneId = null;
+            _selectedGraphZoneId = targetZoneId;
+            _selectedGraphConnectionId = null;
+            RenderGraphEditor();
+            e.Handled = true;
+        }
+
+        private void GraphCanvas_MouseLeftButtonUp(object? sender, MouseButtonEventArgs e)
+        {
+            _graphDragStartZoneId = null;
+            if (_graphDragPreviewLine != null)
+            {
+                GraphCanvas.Children.Remove(_graphDragPreviewLine);
+                _graphDragPreviewLine = null;
+            }
+        }
+
+        private void GraphConnection_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement { Tag: string connectionId })
+                return;
+
+            _selectedGraphConnectionId = connectionId;
+            _selectedGraphZoneId = null;
+            RenderGraphEditor();
+            e.Handled = true;
+        }
+
+        private void UpdateGraphInspector()
+        {
+            if (!_manualGraph.Enabled)
+            {
+                TxtGraphSelectionTitle.Text = "Graph editor disabled";
+                PnlGraphZoneInspector.Visibility = Visibility.Collapsed;
+                PnlGraphConnectionInspector.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            _suppressGraphInspectorEvents = true;
+            try
+            {
+                ManualGraphZone? zone = _manualGraph.Zones.FirstOrDefault(z => z.Id == _selectedGraphZoneId);
+                ManualGraphConnection? connection = _manualGraph.Connections.FirstOrDefault(c => c.Id == _selectedGraphConnectionId);
+                PnlGraphZoneInspector.Visibility = zone != null ? Visibility.Visible : Visibility.Collapsed;
+                PnlGraphConnectionInspector.Visibility = connection != null ? Visibility.Visible : Visibility.Collapsed;
+
+                if (zone != null)
+                {
+                    TxtGraphSelectionTitle.Text = "Zone";
+                    TxtGraphZoneName.Text = zone.Name;
+                    CmbGraphZoneType.SelectedItem = zone.ZoneType;
+                    CmbGraphZoneLayout.SelectedItem = zone.Layout;
+                    SldGraphZoneCastles.Minimum = zone.ZoneType == ManualGraphZoneType.Player ? 1 : 0;
+                    SldGraphZoneCastles.Maximum = 5;
+                    SldGraphZoneCastles.Value = Math.Clamp(zone.CastleCount, (int)SldGraphZoneCastles.Minimum, 5);
+                    TxtGraphZoneCastlesValue.Text = ((int)SldGraphZoneCastles.Value).ToString(CultureInfo.InvariantCulture);
+                    SldGraphZoneSize.Value = Math.Clamp(zone.Size, 0.25, 3.0);
+                    TxtGraphZoneSizeValue.Text = $"{SldGraphZoneSize.Value:F2}x";
+                }
+                else if (connection != null)
+                {
+                    TxtGraphSelectionTitle.Text = "Connection";
+                    string fromName = _manualGraph.Zones.FirstOrDefault(z => z.Id == connection.FromZoneId)?.Name ?? "?";
+                    string toName = _manualGraph.Zones.FirstOrDefault(z => z.Id == connection.ToZoneId)?.Name ?? "?";
+                    TxtGraphConnectionEndpoints.Text = $"{fromName} -> {toName}";
+                    CmbGraphConnectionTypeInspector.SelectedItem = connection.ConnectionType;
+                    CmbGraphGuardMode.SelectedItem = connection.GuardMode;
+                    TxtGraphGuardScale.Text = connection.GuardScale.ToString("0.###", CultureInfo.InvariantCulture);
+                    TxtGraphGuardValue.Text = connection.GuardValue?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+                    PopulateGraphGuardZoneCombo();
+                    CmbGraphGuardZone.SelectedValue = connection.GuardZoneId;
+                    ChkGraphGuardEscape.IsChecked = connection.GuardEscape ?? false;
+                    ChkGraphSimTurnSquad.IsChecked = connection.SimTurnSquad ?? false;
+                    ChkGraphConnectionRoad.IsChecked = connection.Road ?? connection.ConnectionType == ManualGraphConnectionType.Portal;
+                    TxtGraphGuardWeeklyIncrement.Text = connection.GuardWeeklyIncrement?.ToString("0.###", CultureInfo.InvariantCulture) ?? string.Empty;
+                    TxtGraphGuardMatchGroup.Text = connection.GuardMatchGroup ?? string.Empty;
+                    TxtGraphGatePlacement.Text = connection.GatePlacement ?? string.Empty;
+                    TxtGraphConnectionLength.Text = connection.Length?.ToString("0.###", CultureInfo.InvariantCulture) ?? string.Empty;
+                    TxtGraphPortalRulesFrom.Text = SerializeRules(connection.PortalPlacementRulesFrom);
+                    TxtGraphPortalRulesTo.Text = SerializeRules(connection.PortalPlacementRulesTo);
+                }
+                else
+                {
+                    TxtGraphSelectionTitle.Text = "No selection";
+                }
+            }
+            finally
+            {
+                _suppressGraphInspectorEvents = false;
+            }
+        }
+
+        private void PopulateGraphGuardZoneCombo()
+        {
+            if (CmbGraphGuardZone == null)
+                return;
+
+            CmbGraphGuardZone.ItemsSource = _manualGraph.Zones
+                .Select(zone => new ComboBoxItemData(zone.Id, zone.Name))
+                .ToList();
+            CmbGraphGuardZone.DisplayMemberPath = nameof(ComboBoxItemData.Label);
+            CmbGraphGuardZone.SelectedValuePath = nameof(ComboBoxItemData.Value);
+        }
+
+        private sealed record ComboBoxItemData(string Value, string Label);
+
+        private void GraphZoneEditor_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_suppressGraphInspectorEvents) return;
+            ManualGraphZone? zone = _manualGraph.Zones.FirstOrDefault(z => z.Id == _selectedGraphZoneId);
+            if (zone == null) return;
+
+            zone.Name = string.IsNullOrWhiteSpace(TxtGraphZoneName.Text) ? zone.Name : TxtGraphZoneName.Text.Trim();
+            if (CmbGraphZoneType.SelectedItem is ManualGraphZoneType zoneType)
+            {
+                zone.ZoneType = zoneType;
+                if (zoneType == ManualGraphZoneType.Player && zone.CastleCount < 1)
+                    zone.CastleCount = 1;
+                if (zoneType == ManualGraphZoneType.Hub)
+                {
+                    foreach (ManualGraphZone otherZone in _manualGraph.Zones.Where(other => other.Id != zone.Id && other.ZoneType == ManualGraphZoneType.Hub))
+                    {
+                        otherZone.ZoneType = ManualGraphZoneType.NeutralMedium;
+                        otherZone.Layout = ManualGraphService.DefaultLayoutFor(otherZone.ZoneType);
+                    }
+                }
+            }
+
+            if (CmbGraphZoneLayout.SelectedItem is string layout)
+                zone.Layout = layout;
+            zone.CastleCount = Math.Clamp((int)SldGraphZoneCastles.Value, zone.ZoneType == ManualGraphZoneType.Player ? 1 : 0, 5);
+            zone.Size = Math.Clamp(SldGraphZoneSize.Value, 0.25, 3.0);
+            TxtGraphZoneCastlesValue.Text = zone.CastleCount.ToString(CultureInfo.InvariantCulture);
+            TxtGraphZoneSizeValue.Text = $"{zone.Size:F2}x";
+
+            PopulateGraphGuardZoneCombo();
+            RenderGraphEditor();
+            Validate();
+            MarkDirty();
+        }
+
+        private void GraphConnectionEditor_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_suppressGraphInspectorEvents) return;
+            ManualGraphConnection? connection = _manualGraph.Connections.FirstOrDefault(c => c.Id == _selectedGraphConnectionId);
+            if (connection == null) return;
+
+            if (CmbGraphConnectionTypeInspector.SelectedItem is ManualGraphConnectionType connectionType)
+                connection.ConnectionType = connectionType;
+            if (CmbGraphGuardMode.SelectedItem is ManualGraphGuardMode guardMode)
+                connection.GuardMode = guardMode;
+            if (double.TryParse(TxtGraphGuardScale.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double guardScale))
+                connection.GuardScale = Math.Max(0.0, guardScale);
+            if (int.TryParse(TxtGraphGuardValue.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int guardValue))
+                connection.GuardValue = guardValue;
+            else if (string.IsNullOrWhiteSpace(TxtGraphGuardValue.Text))
+                connection.GuardValue = null;
+            connection.GuardZoneId = CmbGraphGuardZone.SelectedValue as string;
+            connection.GuardEscape = ChkGraphGuardEscape.IsChecked == true;
+            connection.SimTurnSquad = ChkGraphSimTurnSquad.IsChecked == true;
+            connection.Road = ChkGraphConnectionRoad.IsChecked == true;
+            if (double.TryParse(TxtGraphGuardWeeklyIncrement.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double weekly))
+                connection.GuardWeeklyIncrement = weekly;
+            else if (string.IsNullOrWhiteSpace(TxtGraphGuardWeeklyIncrement.Text))
+                connection.GuardWeeklyIncrement = null;
+            connection.GuardMatchGroup = string.IsNullOrWhiteSpace(TxtGraphGuardMatchGroup.Text) ? null : TxtGraphGuardMatchGroup.Text.Trim();
+            connection.GatePlacement = string.IsNullOrWhiteSpace(TxtGraphGatePlacement.Text) ? null : TxtGraphGatePlacement.Text.Trim();
+            if (double.TryParse(TxtGraphConnectionLength.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double length))
+                connection.Length = length;
+            else if (string.IsNullOrWhiteSpace(TxtGraphConnectionLength.Text))
+                connection.Length = null;
+            if (TryParseRules(TxtGraphPortalRulesFrom.Text, out List<ContentPlacementRule>? rulesFrom))
+                connection.PortalPlacementRulesFrom = rulesFrom;
+            if (TryParseRules(TxtGraphPortalRulesTo.Text, out List<ContentPlacementRule>? rulesTo))
+                connection.PortalPlacementRulesTo = rulesTo;
+
+            if (sender == CmbGraphConnectionTypeInspector)
+                RenderGraphEditor();
+            Validate();
+            MarkDirty();
+        }
+
+        private static string SerializeRules(List<ContentPlacementRule>? rules) =>
+            rules == null || rules.Count == 0
+                ? string.Empty
+                : JsonSerializer.Serialize(rules, new JsonSerializerOptions { WriteIndented = true });
+
+        private static bool TryParseRules(string raw, out List<ContentPlacementRule>? rules)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                rules = null;
+                return true;
+            }
+
+            try
+            {
+                rules = JsonSerializer.Deserialize<List<ContentPlacementRule>>(raw);
+                return true;
+            }
+            catch
+            {
+                rules = null;
+                return false;
+            }
+        }
+
+        private void BtnGraphResetGuard_Click(object sender, RoutedEventArgs e)
+        {
+            ManualGraphConnection? connection = _manualGraph.Connections.FirstOrDefault(c => c.Id == _selectedGraphConnectionId);
+            if (connection == null) return;
+
+            connection.GuardMode = ManualGraphGuardMode.Auto;
+            connection.GuardScale = 1.0;
+            connection.GuardValue = null;
+            UpdateGraphInspector();
+            Validate();
+            MarkDirty();
+        }
+
+        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (!_manualGraph.Enabled || Keyboard.FocusedElement is TextBox)
+                return;
+
+            if (e.Key != Key.Delete)
+                return;
+
+            if (_selectedGraphConnectionId != null)
+            {
+                _manualGraph.Connections.RemoveAll(connection => connection.Id == _selectedGraphConnectionId);
+                _selectedGraphConnectionId = null;
+                PopulateGraphGuardZoneCombo();
+                RenderGraphEditor();
+                Validate();
+                MarkDirty();
+                e.Handled = true;
+                return;
+            }
+
+            if (_selectedGraphZoneId != null)
+            {
+                _manualGraph.Zones.RemoveAll(zone => zone.Id == _selectedGraphZoneId);
+                _manualGraph.Connections.RemoveAll(connection => connection.FromZoneId == _selectedGraphZoneId || connection.ToZoneId == _selectedGraphZoneId);
+                _selectedGraphZoneId = null;
+                PopulateGraphGuardZoneCombo();
+                RenderGraphEditor();
+                Validate();
+                MarkDirty();
+                e.Handled = true;
+            }
         }
 
         private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -711,8 +1385,10 @@ namespace Olden_Era___Template_Editor
         {
             int heroMin = (int)SldHeroMin.Value;
             int heroMax = (int)SldHeroMax.Value;
-            int players = (int)SldPlayers.Value;
-            int neutral = TotalNeutralZonesFromUi();
+            bool graphMode = _manualGraph.Enabled;
+            int players = graphMode ? Math.Max(0, ManualGraphService.CountPlayerZones(_manualGraph)) : (int)SldPlayers.Value;
+            int neutral = graphMode ? ManualGraphService.CountNeutralZones(_manualGraph) : TotalNeutralZonesFromUi();
+            int totalZoneCount = graphMode ? _manualGraph.Zones.Count : players + neutral;
 
             if (heroMin > heroMax)
             {
@@ -722,7 +1398,7 @@ namespace Olden_Era___Template_Editor
             }
 
             int maxZones = _advancedZoneSettings ? AdvancedModeMaxZones : SimpleModeMaxZones;
-            if (players + neutral > maxZones)
+            if (totalZoneCount > maxZones)
             {
                 SetValidationError($"Total zones (players + neutral) cannot exceed {maxZones}.");
                 BtnPreview.IsEnabled = false;
@@ -743,10 +1419,10 @@ namespace Olden_Era___Template_Editor
                 warnings.Add(new ValidationMessage("The template is still using the default name \"Custom Template\". Consider renaming it before saving.", warnBrush));
 
             int selectedMapSize = SelectedMapSize();
-            int totalZones = players + neutral;
+            int totalZones = totalZoneCount;
             var selectedTopology = CmbTopology.SelectedIndex >= 0 ? TopologyOptions[CmbTopology.SelectedIndex].Topology : MapTopology.Default;
             // Hub layout has an extra central zone that also occupies map area.
-            int totalZonesIncludingHub = selectedTopology == MapTopology.HubAndSpoke ? totalZones + 1 : totalZones;
+            int totalZonesIncludingHub = graphMode ? totalZones : selectedTopology == MapTopology.HubAndSpoke ? totalZones + 1 : totalZones;
             if (totalZonesIncludingHub > 0 && (selectedMapSize * selectedMapSize) / totalZonesIncludingHub < 1024)
                 warnings.Add(new ValidationMessage($"Estimated zone size is too small. The game may freeze when loading the map. Increase the map size or reduce the number of zones.", warnBrush));
 
@@ -838,9 +1514,20 @@ namespace Olden_Era___Template_Editor
             if ((int)SldBorderGuardStrength.Value > 100)
                 warnings.Add(new ValidationMessage("Border/portal guard strength above 100% may cause issues for easy and medium AI enemies — guards can become too strong for them to progress through.", warnBrush));
 
+            _graphValidationHasErrors = false;
+            if (graphMode)
+            {
+                var graphValidation = ManualGraphService.Validate(_manualGraph);
+                var errorBrush = (System.Windows.Media.Brush)FindResource("BrushError");
+                foreach (string error in graphValidation.Errors.Distinct(StringComparer.Ordinal))
+                    warnings.Add(new ValidationMessage(error, errorBrush));
+                _graphValidationHasErrors = graphValidation.Errors.Count > 0;
+            }
+
             SetValidationMessages(warnings);
 
             BtnPreview.IsEnabled = true;
+            UpdateOutdatedWarning();
             return true;
         }
 
@@ -907,7 +1594,29 @@ namespace Olden_Era___Template_Editor
         private void CmbTopology_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!IsInitialized) return;
+            if (_suppressTopologySelectionChanged) return;
             int idx = CmbTopology.SelectedIndex;
+            if (_manualGraph.Enabled && _manualGraph.Zones.Count > 0 && idx != _lastTopologyIndex)
+            {
+                var result = MessageBox.Show(
+                    "Changing the layout will reset the current manual graph. Continue?",
+                    "Reset Manual Graph",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+                if (result != MessageBoxResult.Yes)
+                {
+                    _suppressTopologySelectionChanged = true;
+                    CmbTopology.SelectedIndex = _lastTopologyIndex;
+                    _suppressTopologySelectionChanged = false;
+                    return;
+                }
+
+                _lastTopologyIndex = idx;
+                ResetManualGraphFromCurrentSettings();
+                return;
+            }
+
+            _lastTopologyIndex = idx;
             if (idx >= 0 && idx < TopologyOptions.Length)
                 TxtTopologyDesc.Text = TopologyOptions[idx].Description;
 
@@ -1575,8 +2284,8 @@ namespace Olden_Era___Template_Editor
         {
             TemplateName          = TxtTemplateName.Text.Trim(),
             MapSize               = SelectedMapSize(),
-            PlayerCount           = (int)SldPlayers.Value,
-            NeutralZoneCount      = (int)SldNeutral.Value,
+            PlayerCount           = _manualGraph.Enabled ? Math.Max(1, ManualGraphService.CountPlayerZones(_manualGraph)) : (int)SldPlayers.Value,
+            NeutralZoneCount      = _manualGraph.Enabled ? ManualGraphService.CountNeutralZones(_manualGraph) : (int)SldNeutral.Value,
             PlayerZoneCastles     = (int)SldPlayerCastles.Value,
             NeutralZoneCastles    = (int)SldNeutralCastles.Value,
             AdvancedMode          = _advancedZoneSettings,
@@ -1634,6 +2343,7 @@ namespace Olden_Era___Template_Editor
             MediumNeutralMandatoryContent = BuildZoneMandatoryContentFromUi(_mediumNeutralMandatoryContent),
             HighNeutralMandatoryContent  = BuildZoneMandatoryContentFromUi(_highNeutralMandatoryContent),
             HubZoneMandatoryContent      = BuildZoneMandatoryContentFromUi(_hubZoneMandatoryContent),
+            ManualGraph = CloneManualGraph(_manualGraph),
         };
 
         private void ApplySettings(SettingsFile s)
@@ -1665,7 +2375,13 @@ namespace Olden_Era___Template_Editor
             SldHeroMax.Value        = s.HeroCountMax;
             SldHeroIncrement.Value  = s.HeroCountIncrement;
             int topoIdx = Array.FindIndex(TopologyOptions, t => t.Topology == s.Topology);
-            if (topoIdx >= 0) CmbTopology.SelectedIndex = topoIdx;
+            if (topoIdx >= 0)
+            {
+                _suppressTopologySelectionChanged = true;
+                CmbTopology.SelectedIndex = topoIdx;
+                _suppressTopologySelectionChanged = false;
+                _lastTopologyIndex = topoIdx;
+            }
             ChkRandomPortals.IsChecked        = s.RandomPortals;
             SldMaxPortals.Value               = Math.Clamp(s.MaxPortalConnections, 1, 32);
             PnlMaxPortals.Visibility          = s.RandomPortals ? Visibility.Visible : Visibility.Collapsed;
@@ -1702,10 +2418,13 @@ namespace Olden_Era___Template_Editor
             ApplyZoneMandatoryContentFromSettings(_mediumNeutralMandatoryContent, s.MediumNeutralMandatoryContent, InitializeDefaultMediumNeutralContents);
             ApplyZoneMandatoryContentFromSettings(_highNeutralMandatoryContent, s.HighNeutralMandatoryContent, InitializeDefaultHighNeutralContents);
             ApplyZoneMandatoryContentFromSettings(_hubZoneMandatoryContent, s.HubZoneMandatoryContent, InitializeDefaultHubZoneContents);
+            _manualGraph = s.ManualGraph ?? new ManualGraphDocument();
             UpdateValueLabels();
             UpdateAdvancedZoneSettingsVisibility();
             UpdatePlayerCastleFactionVisibility();
             UpdateWinConditionDetailVisibility();
+            SyncGraphUiFromDocument();
+            RenderGraphEditor();
         }
 
         private bool SaveToPath(string path)
@@ -1764,6 +2483,10 @@ namespace Olden_Era___Template_Editor
                     if (template is null) throw new InvalidDataException("Template file is empty or invalid.");
                     var imported = TemplateImportService.ImportToSettings(template);
                     ApplySettings(imported);
+                    _manualGraph = ManualGraphService.CreateFromTemplate(template, preferAutomaticGuards: false);
+                    _manualGraph.Enabled = false;
+                    SyncGraphUiFromDocument();
+                    RenderGraphEditor();
                     _currentSettingsPath = null;
 
                     // Show preview from the imported template so users can edit from this state directly.
@@ -1831,6 +2554,12 @@ namespace Olden_Era___Template_Editor
         private void BtnSaveGenerated_Click(object sender, RoutedEventArgs e)
         {
             if (_generatedTemplate is null) return;
+            if (_graphValidationHasErrors)
+            {
+                MessageBox.Show("The manual graph has export-blocking validation errors. Fix them before saving a template.", "Graph Validation",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
             string? gameTemplatesPath = FindOldenEraTemplatesPath();
 
@@ -1908,7 +2637,7 @@ namespace Olden_Era___Template_Editor
         {
             TemplateName = TxtTemplateName.Text.Trim(),
             GameMode = CmbGameMode.SelectedItem as string ?? "Classic",
-            PlayerCount = (int)SldPlayers.Value,
+            PlayerCount = _manualGraph.Enabled ? Math.Max(1, ManualGraphService.CountPlayerZones(_manualGraph)) : (int)SldPlayers.Value,
             HeroSettings = new HeroSettings
             {
                 HeroCountMin = (int)SldHeroMin.Value,
@@ -1929,7 +2658,7 @@ namespace Olden_Era___Template_Editor
             },
             ZoneCfg = new ZoneConfiguration
             {
-                NeutralZoneCount = (int)SldNeutral.Value,
+                NeutralZoneCount = _manualGraph.Enabled ? ManualGraphService.CountNeutralZones(_manualGraph) : (int)SldNeutral.Value,
                 PlayerZoneCastles = (int)SldPlayerCastles.Value,
                 NeutralZoneCastles = (int)SldNeutralCastles.Value,
                 ResourceDensityPercent = (int)SldResourceDensity.Value,
@@ -1957,6 +2686,7 @@ namespace Olden_Era___Template_Editor
             MediumNeutralMandatoryContent = BuildZoneMandatoryContentFromUi(_mediumNeutralMandatoryContent),
             HighNeutralMandatoryContent = BuildZoneMandatoryContentFromUi(_highNeutralMandatoryContent),
             HubZoneMandatoryContent = BuildZoneMandatoryContentFromUi(_hubZoneMandatoryContent),
+            ManualGraph = CloneManualGraph(_manualGraph),
             // Neutral zones between players can be influenced by advanced zone settings, but is functionally independent.
             MinNeutralZonesBetweenPlayers = _advancedZoneSettings ? (int)SldMinNeutralBetweenPlayers.Value : 0,
             MatchPlayerCastleFactions = ChkMatchPlayerCastleFactions.IsChecked == true,

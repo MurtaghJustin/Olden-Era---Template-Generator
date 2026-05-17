@@ -30,6 +30,9 @@ namespace Olden_Era___Template_Editor.Services
         ];
         public static RmgTemplate Generate(GeneratorSettings settings)
         {
+            if (settings.ManualGraph.Enabled && settings.ManualGraph.Zones.Count > 0)
+                return GenerateFromManualGraph(settings);
+
             var playerLetters = ZoneLetters.Take(settings.PlayerCount).ToList();
             var neutralZones = BuildNeutralZonePlan(settings);
 
@@ -81,6 +84,179 @@ namespace Olden_Era___Template_Editor.Services
             };
 
             return template;
+        }
+
+        private static RmgTemplate GenerateFromManualGraph(GeneratorSettings settings)
+        {
+            var graph = settings.ManualGraph;
+            var graphZones = graph.Zones
+                .Where(z => !string.IsNullOrWhiteSpace(z.Id) && !string.IsNullOrWhiteSpace(z.Name))
+                .ToList();
+            var zonesById = graphZones.ToDictionary(z => z.Id, StringComparer.Ordinal);
+            var playerGraphZones = graphZones.Where(z => z.ZoneType == ManualGraphZoneType.Player).ToList();
+            var neutralGraphZones = graphZones.Where(z => z.ZoneType is ManualGraphZoneType.NeutralLow
+                or ManualGraphZoneType.NeutralMedium or ManualGraphZoneType.NeutralHigh).ToList();
+
+            var tuning = new GenerationTuning(
+                ComputeContentScale(settings.MapSize, graphZones.Count),
+                settings.ZoneCfg.ResourceDensityPercent / 200.0,
+                settings.ZoneCfg.StructureDensityPercent / 100.0,
+                settings.ZoneCfg.NeutralStackStrengthPercent / 100.0,
+                settings.ZoneCfg.BorderGuardStrengthPercent / 100.0,
+                EffectiveGuardRandomization(settings));
+
+            bool useCityHold = settings.GameEndConditions.CityHold || settings.GameEndConditions.VictoryCondition == "win_condition_5";
+            ManualGraphZone? hubZone = graphZones.FirstOrDefault(z => z.ZoneType == ManualGraphZoneType.Hub);
+            string? holdCityNeutralId = useCityHold && hubZone == null
+                ? neutralGraphZones
+                    .OrderByDescending(GraphQualityRank)
+                    .ThenByDescending(z => z.CastleCount)
+                    .Select(z => z.Id)
+                    .FirstOrDefault()
+                : null;
+
+            var playerIndexByZoneId = playerGraphZones
+                .Select((zone, index) => (zone.Id, index))
+                .ToDictionary(item => item.Id, item => item.index + 1, StringComparer.Ordinal);
+
+            var connectionNamesById = new Dictionary<string, string>(StringComparer.Ordinal);
+            int unnamedConnectionIndex = 1;
+            foreach (ManualGraphConnection connection in graph.Connections)
+            {
+                string generatedName = !string.IsNullOrWhiteSpace(connection.Name)
+                    ? connection.Name!
+                    : $"Graph-{unnamedConnectionIndex++}";
+                connectionNamesById[connection.Id] = generatedName;
+            }
+
+            var mandatoryContentGroups = BuildManualGraphMandatoryContent(graphZones, settings);
+            var mandatoryContentNameByZoneId = mandatoryContentGroups
+                .ToDictionary(group => group.Name["mandatory_content_graph_".Length..], group => group.Name, StringComparer.Ordinal);
+
+            var zones = new List<Zone>(graphZones.Count);
+            foreach (ManualGraphZone graphZone in graphZones)
+            {
+                string[] zoneConnectionNames = graph.Connections
+                    .Where(connection => connection.FromZoneId == graphZone.Id || connection.ToZoneId == graphZone.Id)
+                    .Select(connection => connectionNamesById[connection.Id])
+                    .ToArray();
+
+                string mandatoryContentName = mandatoryContentNameByZoneId.TryGetValue(graphZone.Id, out string? name)
+                    ? name
+                    : $"mandatory_content_graph_{graphZone.Id}";
+
+                Zone zone = graphZone.ZoneType switch
+                {
+                    ManualGraphZoneType.Player => BuildSpawnZone(
+                        $"{zones.Count + 1}",
+                        $"Player{playerIndexByZoneId[graphZone.Id]}",
+                        zoneConnectionNames,
+                        Math.Max(1, graphZone.CastleCount),
+                        settings.MatchPlayerCastleFactions,
+                        graphZone.Size,
+                        settings.SpawnRemoteFootholds,
+                        settings.GenerateRoads,
+                        tuning),
+                    ManualGraphZoneType.Hub => BuildHubZone(
+                        zoneConnectionNames,
+                        tuning,
+                        isHoldCity: useCityHold && hubZone?.Id == graphZone.Id,
+                        size: Math.Clamp(graphZone.Size, 0.25, 3.0),
+                        castleCount: Math.Clamp(graphZone.CastleCount, 0, 5),
+                        generateRoads: settings.GenerateRoads,
+                        hubContentGroupName: mandatoryContentName),
+                    _ => BuildNeutralZone(
+                        new NeutralZonePlan(
+                            $"{zones.Count + 1}",
+                            GraphQuality(graphZone.ZoneType),
+                            Math.Clamp(graphZone.CastleCount, 0, 5)),
+                        zoneConnectionNames,
+                        graphZone.Size,
+                        settings.SpawnRemoteFootholds,
+                        settings.GenerateRoads,
+                        tuning,
+                        isHoldCity: holdCityNeutralId == graphZone.Id)
+                };
+
+                zone.Name = graphZone.Name;
+                zone.Layout = string.IsNullOrWhiteSpace(graphZone.Layout) ? DefaultGraphLayout(graphZone.ZoneType) : graphZone.Layout;
+                zone.Size = graphZone.ZoneType == ManualGraphZoneType.Hub
+                    ? Math.Clamp(graphZone.Size, 0.25, 3.0)
+                    : NormalizeZoneSize(graphZone.Size);
+                zone.MandatoryContent = [mandatoryContentName];
+                zone.EditorZoneType = graphZone.ZoneType.ToString();
+                zones.Add(zone);
+            }
+
+            var connections = new List<Connection>(graph.Connections.Count);
+            foreach (ManualGraphConnection graphConnection in graph.Connections)
+            {
+                if (!zonesById.TryGetValue(graphConnection.FromZoneId, out ManualGraphZone? fromZone)) continue;
+                if (!zonesById.TryGetValue(graphConnection.ToZoneId, out ManualGraphZone? toZone)) continue;
+
+                string fromZoneName = fromZone.Name;
+                string toZoneName = toZone.Name;
+                string connectionName = connectionNamesById[graphConnection.Id];
+                bool isPortal = graphConnection.ConnectionType == ManualGraphConnectionType.Portal;
+                int defaultGuardValue = isPortal
+                    ? ScaleBorderGuardValue(25000, tuning)
+                    : ManualGraphDefaultGuardValue(fromZone.ZoneType, toZone.ZoneType, tuning);
+
+                int effectiveGuardValue = graphConnection.GuardMode switch
+                {
+                    ManualGraphGuardMode.Scale => Math.Max(0, (int)System.Math.Round(defaultGuardValue * graphConnection.GuardScale, System.MidpointRounding.AwayFromZero)),
+                    ManualGraphGuardMode.Absolute => graphConnection.GuardValue ?? defaultGuardValue,
+                    _ => defaultGuardValue
+                };
+
+                string guardZoneName = graphConnection.GuardZoneId != null && zonesById.TryGetValue(graphConnection.GuardZoneId, out ManualGraphZone? guardZone)
+                    ? guardZone.Name
+                    : fromZoneName;
+
+                connections.Add(new Connection
+                {
+                    Name = connectionName,
+                    From = fromZoneName,
+                    To = toZoneName,
+                    ConnectionType = isPortal ? "Portal" : "Direct",
+                    GuardZone = guardZoneName,
+                    GuardEscape = graphConnection.GuardEscape ?? false,
+                    SimTurnSquad = graphConnection.SimTurnSquad ?? (isPortal ? null : true),
+                    GuardValue = effectiveGuardValue,
+                    GuardWeeklyIncrement = graphConnection.GuardWeeklyIncrement ?? 0.15,
+                    GuardMatchGroup = graphConnection.GuardMatchGroup ?? (!isPortal ? $"graph_guard_{connectionName}" : null),
+                    PortalPlacementRulesFrom = isPortal
+                        ? graphConnection.PortalPlacementRulesFrom ?? [RulePresets.CrossroadsDistance(DistancePresets.Near, weight: 2)]
+                        : null,
+                    PortalPlacementRulesTo = isPortal
+                        ? graphConnection.PortalPlacementRulesTo ?? [RulePresets.CrossroadsDistance(DistancePresets.Near, weight: 2)]
+                        : null,
+                    Road = graphConnection.Road ?? isPortal,
+                    GatePlacement = graphConnection.GatePlacement,
+                    Length = graphConnection.Length
+                });
+            }
+
+            string effectiveVictoryCondition = settings.GameEndConditions.VictoryCondition;
+            string zeroAngleZone = playerGraphZones.FirstOrDefault()?.Name ?? graphZones.First().Name;
+            return new RmgTemplate
+            {
+                Name = settings.TemplateName,
+                GameMode = settings.GameMode,
+                Description = BuildManualGraphTemplateDescription(settings, graphZones.Count, neutralGraphZones.Count),
+                DisplayWinCondition = effectiveVictoryCondition,
+                SizeX = settings.MapSize,
+                SizeZ = settings.MapSize,
+                GameRules = BuildGameRules(settings, effectiveVictoryCondition),
+                ValueOverrides = BuildValueOverrides(settings.ValueOverridesText),
+                GlobalBans = BuildGlobalBans(settings.BannedItems, settings.BannedMagics),
+                Variants = [BuildManualGraphVariant(zeroAngleZone, zones, connections)],
+                ZoneLayouts = BuildZoneLayouts(),
+                MandatoryContent = mandatoryContentGroups,
+                ContentCountLimits = ZoneContentManager.BuildAllContentCountLimits(settings),
+                ContentPools = [],
+                ContentLists = []
+            };
         }
 
         private static string BuildTemplateDescription(GeneratorSettings settings, int neutralZoneCount)
@@ -609,39 +785,14 @@ namespace Olden_Era___Template_Editor.Services
         private static List<string> BuildOrderedLetters(GeneratorSettings settings, List<string> playerLetters, List<NeutralZonePlan> neutralZones, bool isRing)
         {
             var neutralLetters = neutralZones.Select(zone => zone.Letter).ToList();
+            int honoredSeparation = settings.MinNeutralZonesBetweenPlayers > 0
+                && CanHonorNeutralSeparation(settings, neutralLetters.Count)
+                    ? settings.MinNeutralZonesBetweenPlayers
+                    : 0;
 
-            {
-                int honoredSeparation = settings.MinNeutralZonesBetweenPlayers > 0
-                    && CanHonorNeutralSeparation(settings, neutralLetters.Count)
-                        ? settings.MinNeutralZonesBetweenPlayers
-                        : 0;
-
-                return isRing
-                    ? BuildBalancedRingLetters(playerLetters, neutralZones, honoredSeparation)
-                    : BuildBalancedChainLetters(playerLetters, neutralZones, honoredSeparation);
-            }
-
-            int min = settings.MinNeutralZonesBetweenPlayers;
-            if (min <= 0 || settings.RandomPortals || !CanHonorNeutralSeparation(settings, neutralLetters.Count))
-                return playerLetters.Concat(neutralLetters).ToList();
-
-            var ordered = new List<string>();
-            var remainingNeutrals = new Queue<string>(neutralLetters);
-
-            for (int i = 0; i < playerLetters.Count; i++)
-            {
-                ordered.Add(playerLetters[i]);
-                bool needsSeparatorAfterPlayer = isRing || i < playerLetters.Count - 1;
-                if (!needsSeparatorAfterPlayer) continue;
-
-                for (int j = 0; j < min && remainingNeutrals.Count > 0; j++)
-                    ordered.Add(remainingNeutrals.Dequeue());
-            }
-
-            while (remainingNeutrals.Count > 0)
-                ordered.Add(remainingNeutrals.Dequeue());
-
-            return ordered.Count > 0 ? ordered : playerLetters.Concat(neutralLetters).ToList();
+            return isRing
+                ? BuildBalancedRingLetters(playerLetters, neutralZones, honoredSeparation)
+                : BuildBalancedChainLetters(playerLetters, neutralZones, honoredSeparation);
         }
 
         private static List<string> BuildBalancedRingLetters(
@@ -2652,6 +2803,29 @@ namespace Olden_Era___Template_Editor.Services
             Connections = connections
         };
 
+        private static Variant BuildManualGraphVariant(string zeroAngleZone, List<Zone> zones, List<Connection> connections) => new()
+        {
+            Orientation = new Orientation
+            {
+                ZeroAngleZone = zeroAngleZone,
+                BaseAngleMin = 45,
+                BaseAngleMax = 45,
+                RandomAngleAmplitude = 360,
+                RandomAngleStep = zones.Count > 0 ? 360.0 / zones.Count : 360.0
+            },
+            Border = new Border
+            {
+                CornerRadius = 0.0,
+                ObstaclesWidth = 3,
+                ObstaclesNoise = [new NoiseEntry { Amp = 1, Freq = 12 }],
+                WaterWidth = 0,
+                WaterNoise = [new NoiseEntry { Amp = 1, Freq = 12 }],
+                WaterType = "water grass"
+            },
+            Zones = zones,
+            Connections = connections
+        };
+
         // ── Spawn zone ───────────────────────────────────────────────────────────
 
         private static Zone BuildSpawnZone(string letter, string player, string[] ringConns, int castleCount, bool matchCastleFactions, double zoneSize, bool spawnFootholds, bool generateRoads, GenerationTuning tuning)
@@ -3259,6 +3433,127 @@ namespace Olden_Era___Template_Editor.Services
                 Name = $"mandatory_content_neutral_{letter}",
                 Content = content
             };
+        }
+
+        private static List<MandatoryContentGroup> BuildManualGraphMandatoryContent(
+            List<ManualGraphZone> graphZones,
+            GeneratorSettings settings)
+        {
+            var groups = new List<MandatoryContentGroup>(graphZones.Count);
+            foreach (ManualGraphZone zone in graphZones)
+            {
+                List<ContentItem> content = zone.ZoneType switch
+                {
+                    ManualGraphZoneType.Player => ZoneContentManager.BuildPlayerZoneMandatoryContent(settings),
+                    ManualGraphZoneType.NeutralLow => ZoneContentManager.BuildLowNeutralMandatoryContent(settings),
+                    ManualGraphZoneType.NeutralHigh => ZoneContentManager.BuildHighNeutralMandatoryContent(settings),
+                    ManualGraphZoneType.Hub => CloneContentItems(settings.HubZoneMandatoryContent),
+                    _ => ZoneContentManager.BuildMediumNeutralMandatoryContent(settings)
+                };
+
+                if (zone.ZoneType != ManualGraphZoneType.Player && zone.CastleCount == 0)
+                    content = ZoneContentManager.StripNearCastleRules(content);
+
+                groups.Add(new MandatoryContentGroup
+                {
+                    Name = $"mandatory_content_graph_{zone.Id}",
+                    Content = content
+                });
+            }
+
+            return groups;
+        }
+
+        private static List<ContentItem> CloneContentItems(List<ContentItem> items)
+        {
+            return items.Select(item => new ContentItem
+            {
+                Name = item.Name,
+                Sid = item.Sid,
+                Variant = item.Variant,
+                IsGuarded = item.IsGuarded,
+                IsMine = item.IsMine,
+                SoloEncounter = item.SoloEncounter,
+                IncludeLists = item.IncludeLists != null ? [.. item.IncludeLists] : null,
+                Rules = item.Rules?.Select(rule => new ContentPlacementRule
+                {
+                    Type = rule.Type,
+                    Args = rule.Args != null ? [.. rule.Args] : null,
+                    TargetMin = rule.TargetMin,
+                    TargetMax = rule.TargetMax,
+                    Weight = rule.Weight
+                }).ToList()
+            }).ToList();
+        }
+
+        private static NeutralZoneQuality GraphQuality(ManualGraphZoneType zoneType) => zoneType switch
+        {
+            ManualGraphZoneType.NeutralLow => NeutralZoneQuality.Low,
+            ManualGraphZoneType.NeutralHigh => NeutralZoneQuality.High,
+            _ => NeutralZoneQuality.Medium
+        };
+
+        private static int GraphQualityRank(ManualGraphZone zone) => zone.ZoneType switch
+        {
+            ManualGraphZoneType.NeutralHigh => 3,
+            ManualGraphZoneType.Hub => 3,
+            ManualGraphZoneType.NeutralMedium => 2,
+            ManualGraphZoneType.NeutralLow => 1,
+            _ => 0
+        };
+
+        private static string DefaultGraphLayout(ManualGraphZoneType zoneType) => zoneType switch
+        {
+            ManualGraphZoneType.Player => SpawnLayoutName,
+            ManualGraphZoneType.NeutralLow => SideLayoutName,
+            ManualGraphZoneType.Hub => CenterLayoutName,
+            _ => TreasureLayoutName
+        };
+
+        private static int ManualGraphDefaultGuardValue(
+            ManualGraphZoneType fromZoneType,
+            ManualGraphZoneType toZoneType,
+            GenerationTuning tuning)
+        {
+            if (fromZoneType == ManualGraphZoneType.Player && toZoneType == ManualGraphZoneType.Player)
+                return ScaleBorderGuardValue(30000, tuning);
+
+            int higherBase = System.Math.Max(ManualGraphQualityGuardBase(fromZoneType), ManualGraphQualityGuardBase(toZoneType));
+            return ScaleBorderGuardValue(higherBase, tuning);
+        }
+
+        private static int ManualGraphQualityGuardBase(ManualGraphZoneType zoneType) => zoneType switch
+        {
+            ManualGraphZoneType.NeutralLow => 15000,
+            ManualGraphZoneType.NeutralHigh => 25000,
+            ManualGraphZoneType.Hub => 25000,
+            ManualGraphZoneType.Player => 30000,
+            _ => 20000
+        };
+
+        private static string BuildManualGraphTemplateDescription(GeneratorSettings settings, int totalZones, int neutralZoneCount)
+        {
+            var parts = new List<string>
+            {
+                "Manual graph layout",
+                CountPhrase(totalZones, "zone", "zones"),
+                CountPhrase(neutralZoneCount, "neutral zone", "neutral zones")
+            };
+
+            var options = new List<string>();
+            if (settings.RandomPortals)
+                options.Add("random portals");
+            if (!settings.SpawnRemoteFootholds)
+                options.Add("no remote footholds");
+            if (!settings.GenerateRoads)
+                options.Add("roads disabled");
+
+            if (options.Count > 0)
+                parts.Add($"options: {string.Join(", ", options)}");
+
+            var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            string versionLabel = version != null ? $"v{version.Major}.{version.Minor}" : "v?";
+            return $"Generated with Olden Era Template Generator {versionLabel}: {string.Join(", ", parts)}.";
         }
     }
 }
