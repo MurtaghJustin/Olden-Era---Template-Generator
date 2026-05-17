@@ -655,7 +655,10 @@ namespace Olden_Era___Template_Editor
                     ZoneType = zone.ZoneType,
                     Layout = zone.Layout,
                     CastleCount = zone.CastleCount,
-                    Size = zone.Size
+                    Size = zone.Size,
+                    PreviewPositionX = zone.PreviewPositionX,
+                    PreviewPositionY = zone.PreviewPositionY,
+                    PreviewRing = zone.PreviewRing
                 }).ToList(),
                 Connections = graph.Connections.Select(connection => new ManualGraphConnection
                 {
@@ -696,17 +699,64 @@ namespace Olden_Era___Template_Editor
             }).ToList();
         }
 
-        private void SyncGraphUiFromDocument()
+        private void ApplySharedDefaultsToGraphZone(ManualGraphZone zone)
         {
-            if (ChkGraphEditMode == null)
+            ManualGraphService.ApplySharedZoneDefaults(
+                zone,
+                playerCastleCount: (int)SldPlayerCastles.Value,
+                neutralCastleCount: (int)SldNeutralCastles.Value,
+                hubCastleCount: (int)SldHubCastles.Value,
+                playerZoneSize: _advancedZoneSettings ? SldPlayerZoneSize.Value : 1.0,
+                neutralZoneSize: _advancedZoneSettings ? SldNeutralZoneSize.Value : 1.0,
+                hubZoneSize: SldHubZoneSize.Value);
+        }
+
+        private void ApplySharedDefaultsToManualGraph()
+        {
+            if (_manualGraph.Zones.Count == 0)
                 return;
 
-            ChkGraphEditMode.IsChecked = _manualGraph.Enabled;
-            PnlGraphEditor.Visibility = _manualGraph.Enabled ? Visibility.Visible : Visibility.Collapsed;
+            bool changed = ManualGraphService.ApplySharedZoneDefaults(
+                _manualGraph,
+                playerCastleCount: (int)SldPlayerCastles.Value,
+                neutralCastleCount: (int)SldNeutralCastles.Value,
+                hubCastleCount: (int)SldHubCastles.Value,
+                playerZoneSize: _advancedZoneSettings ? SldPlayerZoneSize.Value : 1.0,
+                neutralZoneSize: _advancedZoneSettings ? SldNeutralZoneSize.Value : 1.0,
+                hubZoneSize: SldHubZoneSize.Value);
+
+            if (!changed)
+                return;
+
+            if (_manualGraph.Enabled)
+                RenderGraphEditor();
+        }
+
+        private void SyncGraphUiFromDocument()
+        {
+            if (TabGraphEditor == null)
+                return;
+
+            UpdateGraphModeUi();
             _selectedGraphZoneId = null;
             _selectedGraphConnectionId = null;
             PopulateGraphGuardZoneCombo();
             UpdateGraphInspector();
+        }
+
+        private void UpdateGraphModeUi()
+        {
+            if (TabGraphEditor == null)
+                return;
+
+            if (!_manualGraph.Enabled
+                && MainTabs != null
+                && ReferenceEquals(MainTabs.SelectedItem, TabGraphEditor))
+            {
+                MainTabs.SelectedIndex = MainTabs.Items.Count > 1 ? 1 : 0;
+            }
+
+            TabGraphEditor.Visibility = _manualGraph.Enabled ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void EnsureGraphDocumentSeededFromCurrentState()
@@ -748,17 +798,37 @@ namespace Olden_Era___Template_Editor
             MarkDirty();
         }
 
-        private void ChkGraphEditMode_Changed(object sender, RoutedEventArgs e)
+        private void BtnOpenGraphEditor_Click(object sender, RoutedEventArgs e)
         {
             if (!IsInitialized) return;
 
-            bool enabled = ChkGraphEditMode.IsChecked == true;
-            if (enabled)
+            bool wasEnabled = _manualGraph.Enabled;
+            if (!_manualGraph.Enabled)
+            {
                 EnsureGraphDocumentSeededFromCurrentState();
-            _manualGraph.Enabled = enabled;
-            PnlGraphEditor.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+                _manualGraph.Enabled = true;
+                _selectedGraphZoneId = null;
+                _selectedGraphConnectionId = null;
+            }
+
+            UpdateGraphModeUi();
+            PopulateGraphGuardZoneCombo();
+            RenderGraphEditor();
+            if (TabGraphEditor != null)
+                MainTabs.SelectedItem = TabGraphEditor;
+            Validate();
+            if (!wasEnabled)
+                MarkDirty();
+        }
+
+        private void BtnCloseGraphEditor_Click(object sender, RoutedEventArgs e)
+        {
+            if (!IsInitialized || !_manualGraph.Enabled) return;
+
+            _manualGraph.Enabled = false;
             _selectedGraphZoneId = null;
             _selectedGraphConnectionId = null;
+            UpdateGraphModeUi();
             PopulateGraphGuardZoneCombo();
             RenderGraphEditor();
             Validate();
@@ -807,6 +877,7 @@ namespace Olden_Era___Template_Editor
                 CastleCount = zoneType == ManualGraphZoneType.Player ? 1 : 0,
                 Size = 1.0
             };
+            ApplySharedDefaultsToGraphZone(newZone);
             _manualGraph.Zones.Add(newZone);
             _selectedGraphZoneId = newZone.Id;
             _selectedGraphConnectionId = null;
@@ -905,6 +976,8 @@ namespace Olden_Era___Template_Editor
 
         private Dictionary<string, Point> ComputeGraphLayout()
         {
+            ManualGraphService.EnsurePreviewHints(_manualGraph);
+
             var template = new RmgTemplate
             {
                 Variants =
@@ -920,7 +993,11 @@ namespace Olden_Era___Template_Editor
                         {
                             Name = zone.Name,
                             Layout = zone.Layout,
-                            EditorZoneType = zone.ZoneType.ToString()
+                            EditorZoneType = zone.ZoneType.ToString(),
+                            GeneratorPosition = zone.PreviewPositionX.HasValue && zone.PreviewPositionY.HasValue
+                                ? (zone.PreviewPositionX.Value, zone.PreviewPositionY.Value)
+                                : null,
+                            GeneratorRing = zone.PreviewRing
                         }).ToList(),
                         Connections = _manualGraph.Connections
                             .Where(connection =>
@@ -938,10 +1015,20 @@ namespace Olden_Era___Template_Editor
                 ]
             };
 
-            Dictionary<string, Point> positionsByName = TemplatePreviewPngWriter.ComputeLayout(template, MapTopology.Random);
+            MapTopology topology = GetGraphPreviewTopology();
+            Dictionary<string, Point> positionsByName = TemplatePreviewPngWriter.ComputeLayout(template, topology);
             return _manualGraph.Zones
                 .Where(zone => positionsByName.ContainsKey(zone.Name))
                 .ToDictionary(zone => zone.Id, zone => positionsByName[zone.Name], StringComparer.Ordinal);
+        }
+
+        private MapTopology GetGraphPreviewTopology()
+        {
+            int idx = CmbTopology.SelectedIndex;
+            if (idx >= 0 && idx < TopologyOptions.Length)
+                return TopologyOptions[idx].Topology;
+
+            return MapTopology.Random;
         }
 
         private static Color GraphZoneFill(ManualGraphZoneType zoneType) => zoneType switch
@@ -1139,26 +1226,30 @@ namespace Olden_Era___Template_Editor
             ManualGraphZone? zone = _manualGraph.Zones.FirstOrDefault(z => z.Id == _selectedGraphZoneId);
             if (zone == null) return;
 
+            bool applySharedDefaults = false;
             zone.Name = string.IsNullOrWhiteSpace(TxtGraphZoneName.Text) ? zone.Name : TxtGraphZoneName.Text.Trim();
             if (CmbGraphZoneType.SelectedItem is ManualGraphZoneType zoneType)
             {
                 zone.ZoneType = zoneType;
-                if (zoneType == ManualGraphZoneType.Player && zone.CastleCount < 1)
-                    zone.CastleCount = 1;
+                applySharedDefaults = ReferenceEquals(sender, CmbGraphZoneType);
                 if (zoneType == ManualGraphZoneType.Hub)
                 {
                     foreach (ManualGraphZone otherZone in _manualGraph.Zones.Where(other => other.Id != zone.Id && other.ZoneType == ManualGraphZoneType.Hub))
                     {
                         otherZone.ZoneType = ManualGraphZoneType.NeutralMedium;
                         otherZone.Layout = ManualGraphService.DefaultLayoutFor(otherZone.ZoneType);
+                        ApplySharedDefaultsToGraphZone(otherZone);
                     }
                 }
             }
 
             if (CmbGraphZoneLayout.SelectedItem is string layout)
                 zone.Layout = layout;
+
             zone.CastleCount = Math.Clamp((int)SldGraphZoneCastles.Value, zone.ZoneType == ManualGraphZoneType.Player ? 1 : 0, 5);
             zone.Size = Math.Clamp(SldGraphZoneSize.Value, 0.25, 3.0);
+            if (applySharedDefaults)
+                ApplySharedDefaultsToGraphZone(zone);
             TxtGraphZoneCastlesValue.Text = zone.CastleCount.ToString(CultureInfo.InvariantCulture);
             TxtGraphZoneSizeValue.Text = $"{zone.Size:F2}x";
 
@@ -1327,6 +1418,7 @@ namespace Olden_Era___Template_Editor
             UpdateValueLabels();
             UpdatePlayerCastleFactionVisibility();
             UpdateAdvancedZoneSettingsVisibility();
+            ApplySharedDefaultsToManualGraph();
             MarkDirty();
             Validate();
         }
@@ -1829,6 +1921,7 @@ namespace Olden_Era___Template_Editor
 
             UpdateAdvancedZoneSettingsVisibility();
             UpdateValueLabels();
+            ApplySharedDefaultsToManualGraph();
             MarkDirty();
             Validate();
         }

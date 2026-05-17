@@ -60,6 +60,15 @@ namespace Olden_Era___Template_Editor.Models
 
         [JsonPropertyName("size")]
         public double Size { get; set; } = 1.0;
+
+        [JsonPropertyName("previewPositionX")]
+        public double? PreviewPositionX { get; set; }
+
+        [JsonPropertyName("previewPositionY")]
+        public double? PreviewPositionY { get; set; }
+
+        [JsonPropertyName("previewRing")]
+        public int? PreviewRing { get; set; }
     }
 
     public sealed class ManualGraphConnection

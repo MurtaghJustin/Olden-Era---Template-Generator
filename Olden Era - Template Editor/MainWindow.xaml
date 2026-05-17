@@ -2660,6 +2660,222 @@
                 </DockPanel>
             </Grid>
         </TabItem>
+        <TabItem x:Name="TabGraphEditor"
+                 Header="Graph Editor"
+                 Visibility="Collapsed">
+            <Border Margin="0,8,0,0"
+                    Style="{StaticResource SectionBorder}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="8"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="8"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="0"
+                               Grid.ColumnSpan="3"
+                               Text="Manual graph mode overrides zone counts and connection structure for generated templates. The topology dropdown is still available as a reset/scaffold source."
+                               Foreground="{StaticResource BrushTextDim}"
+                               FontSize="12"
+                               TextWrapping="Wrap"/>
+
+                    <StackPanel Grid.Row="2"
+                                Grid.Column="0"
+                                Grid.ColumnSpan="3"
+                                Orientation="Horizontal">
+                        <Button x:Name="BtnCloseGraphEditor"
+                                Content="Use Preset Layout Mode"
+                                Width="170"
+                                Style="{StaticResource ToolbarButton}"
+                                Click="BtnCloseGraphEditor_Click"/>
+                        <ComboBox x:Name="CmbGraphAddZoneType"
+                                  Width="150"
+                                  Margin="8,0,0,0"/>
+                        <Button x:Name="BtnGraphAddZone"
+                                Content="Add Zone"
+                                Margin="8,0,0,0"
+                                Width="90"
+                                Style="{StaticResource ToolbarButton}"
+                                Click="BtnGraphAddZone_Click"/>
+                        <ComboBox x:Name="CmbGraphConnectionType"
+                                  Width="100"
+                                  Margin="8,0,0,0"/>
+                        <Button x:Name="BtnGraphAutoArrange"
+                                Content="Auto Arrange"
+                                Margin="8,0,0,0"
+                                Width="110"
+                                Style="{StaticResource ToolbarButton}"
+                                Click="BtnGraphAutoArrange_Click"/>
+                        <Button x:Name="BtnGraphResetFromTopology"
+                                Content="Reset From Layout"
+                                Margin="8,0,0,0"
+                                Width="130"
+                                Style="{StaticResource ToolbarButton}"
+                                Click="BtnGraphResetFromTopology_Click"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="4"
+                            Grid.Column="0"
+                            BorderThickness="1"
+                            BorderBrush="{StaticResource BrushBorder}"
+                            Background="#201814"
+                            MinHeight="420">
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Auto">
+                            <Canvas x:Name="GraphCanvas"
+                                    Width="700"
+                                    Height="700"
+                                    Background="#201814"/>
+                        </ScrollViewer>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="4"
+                                  Grid.Column="2"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <TextBlock x:Name="TxtGraphSelectionTitle"
+                                       Text="No selection"
+                                       Style="{StaticResource SectionHeader}"/>
+                            <TextBlock x:Name="TxtGraphSelectionHint"
+                                       Text="Click a node or edge to edit it. Drag from one node to another to create a connection."
+                                       Foreground="{StaticResource BrushTextDim}"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,8"/>
+
+                            <StackPanel x:Name="PnlGraphZoneInspector"
+                                        Visibility="Collapsed">
+                                <TextBlock Text="Zone Name"/>
+                                <TextBox x:Name="TxtGraphZoneName"
+                                         TextChanged="GraphZoneEditor_Changed"/>
+                                <TextBlock Text="Zone Type"
+                                           Margin="0,8,0,0"/>
+                                <ComboBox x:Name="CmbGraphZoneType"
+                                          SelectionChanged="GraphZoneEditor_Changed"/>
+                                <TextBlock Text="Layout Preset"
+                                           Margin="0,8,0,0"/>
+                                <ComboBox x:Name="CmbGraphZoneLayout"
+                                          SelectionChanged="GraphZoneEditor_Changed"/>
+                                <TextBlock Text="Castles"
+                                           Margin="0,8,0,0"/>
+                                <DockPanel>
+                                    <TextBlock x:Name="TxtGraphZoneCastlesValue"
+                                               Text="0"
+                                               DockPanel.Dock="Right"/>
+                                </DockPanel>
+                                <Slider x:Name="SldGraphZoneCastles"
+                                        Minimum="0"
+                                        Maximum="5"
+                                        TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        ValueChanged="GraphZoneEditor_Changed"/>
+                                <TextBlock Text="Relative Size"
+                                           Margin="0,8,0,0"/>
+                                <DockPanel>
+                                    <TextBlock x:Name="TxtGraphZoneSizeValue"
+                                               Text="1.00x"
+                                               DockPanel.Dock="Right"/>
+                                </DockPanel>
+                                <Slider x:Name="SldGraphZoneSize"
+                                        Minimum="0.25"
+                                        Maximum="3"
+                                        TickFrequency="0.05"
+                                        IsSnapToTickEnabled="True"
+                                        ValueChanged="GraphZoneEditor_Changed"/>
+                            </StackPanel>
+
+                            <StackPanel x:Name="PnlGraphConnectionInspector"
+                                        Visibility="Collapsed">
+                                <TextBlock x:Name="TxtGraphConnectionEndpoints"
+                                           Text="Connection"
+                                           Foreground="{StaticResource BrushTextDim}"
+                                           Margin="0,0,0,8"/>
+                                <TextBlock Text="Connection Type"/>
+                                <ComboBox x:Name="CmbGraphConnectionTypeInspector"
+                                          SelectionChanged="GraphConnectionEditor_Changed"/>
+                                <TextBlock Text="Guard Mode"
+                                           Margin="0,8,0,0"/>
+                                <ComboBox x:Name="CmbGraphGuardMode"
+                                          SelectionChanged="GraphConnectionEditor_Changed"/>
+                                <TextBlock Text="Guard Scale"
+                                           Margin="0,8,0,0"/>
+                                <TextBox x:Name="TxtGraphGuardScale"
+                                         TextChanged="GraphConnectionEditor_Changed"/>
+                                <TextBlock Text="Absolute Guard Value"
+                                           Margin="0,8,0,0"/>
+                                <TextBox x:Name="TxtGraphGuardValue"
+                                         TextChanged="GraphConnectionEditor_Changed"/>
+                                <Button x:Name="BtnGraphResetGuard"
+                                        Content="Reset Guard To Automatic"
+                                        Margin="0,8,0,0"
+                                        Style="{StaticResource ToolbarButton}"
+                                        Click="BtnGraphResetGuard_Click"/>
+                                <TextBlock Text="Guard Zone"
+                                           Margin="0,8,0,0"/>
+                                <ComboBox x:Name="CmbGraphGuardZone"
+                                          SelectionChanged="GraphConnectionEditor_Changed"/>
+                                <CheckBox x:Name="ChkGraphGuardEscape"
+                                          Content="Guard Escape"
+                                          Margin="0,8,0,0"
+                                          Checked="GraphConnectionEditor_Changed"
+                                          Unchecked="GraphConnectionEditor_Changed"/>
+                                <CheckBox x:Name="ChkGraphSimTurnSquad"
+                                          Content="Sim Turn Squad"
+                                          Margin="0,4,0,0"
+                                          Checked="GraphConnectionEditor_Changed"
+                                          Unchecked="GraphConnectionEditor_Changed"/>
+                                <CheckBox x:Name="ChkGraphConnectionRoad"
+                                          Content="Road"
+                                          Margin="0,4,0,0"
+                                          Checked="GraphConnectionEditor_Changed"
+                                          Unchecked="GraphConnectionEditor_Changed"/>
+                                <TextBlock Text="Guard Weekly Increment"
+                                           Margin="0,8,0,0"/>
+                                <TextBox x:Name="TxtGraphGuardWeeklyIncrement"
+                                         TextChanged="GraphConnectionEditor_Changed"/>
+                                <TextBlock Text="Guard Match Group"
+                                           Margin="0,8,0,0"/>
+                                <TextBox x:Name="TxtGraphGuardMatchGroup"
+                                         TextChanged="GraphConnectionEditor_Changed"/>
+                                <TextBlock Text="Gate Placement"
+                                           Margin="0,8,0,0"/>
+                                <TextBox x:Name="TxtGraphGatePlacement"
+                                         TextChanged="GraphConnectionEditor_Changed"/>
+                                <TextBlock Text="Length"
+                                           Margin="0,8,0,0"/>
+                                <TextBox x:Name="TxtGraphConnectionLength"
+                                         TextChanged="GraphConnectionEditor_Changed"/>
+                                <TextBlock Text="Portal Rules From (JSON)"
+                                           Margin="0,8,0,0"/>
+                                <TextBox x:Name="TxtGraphPortalRulesFrom"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         Height="80"
+                                         VerticalScrollBarVisibility="Auto"
+                                         TextChanged="GraphConnectionEditor_Changed"/>
+                                <TextBlock Text="Portal Rules To (JSON)"
+                                           Margin="0,8,0,0"/>
+                                <TextBox x:Name="TxtGraphPortalRulesTo"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         Height="80"
+                                         VerticalScrollBarVisibility="Auto"
+                                         TextChanged="GraphConnectionEditor_Changed"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </TabItem>
     </TabControl>
 
             <!-- ─── PREVIEW COLUMN ───────────────────────────────────── -->
@@ -2717,9 +2933,7 @@
                         
                 <Grid Grid.Row="4">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="8"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
                         <RowDefinition Height="8"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
@@ -2740,184 +2954,11 @@
                         </StackPanel>
                     </Border>
 
-                    <CheckBox Grid.Row="2"
-                              x:Name="ChkGraphEditMode"
-                              Content="Enable graph edit mode"
-                              Foreground="{StaticResource BrushText}"
-                              Checked="ChkGraphEditMode_Changed"
-                              Unchecked="ChkGraphEditMode_Changed"/>
-
-                    <Border Grid.Row="4"
-                            x:Name="PnlGraphEditor"
-                            Visibility="Collapsed"
-                            BorderThickness="2"
-                            CornerRadius="4"
-                            BorderBrush="{StaticResource BrushBorder}"
-                            Background="#15100D"
-                            Padding="10">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="2*"/>
-                                <ColumnDefinition Width="10"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="8"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="8"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
-                                       Text="Manual graph mode overrides zone counts and connection structure for generated templates. The topology dropdown is still available as a reset/scaffold source."
-                                       Foreground="{StaticResource BrushTextDim}"
-                                       FontSize="12"
-                                       TextWrapping="Wrap"/>
-
-                            <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
-                                <ComboBox x:Name="CmbGraphAddZoneType" Width="150"/>
-                                <Button x:Name="BtnGraphAddZone"
-                                        Content="Add Zone"
-                                        Margin="8,0,0,0"
-                                        Width="90"
-                                        Style="{StaticResource ToolbarButton}"
-                                        Click="BtnGraphAddZone_Click"/>
-                                <ComboBox x:Name="CmbGraphConnectionType" Width="100" Margin="8,0,0,0"/>
-                                <Button x:Name="BtnGraphAutoArrange"
-                                        Content="Auto Arrange"
-                                        Margin="8,0,0,0"
-                                        Width="110"
-                                        Style="{StaticResource ToolbarButton}"
-                                        Click="BtnGraphAutoArrange_Click"/>
-                                <Button x:Name="BtnGraphResetFromTopology"
-                                        Content="Reset From Layout"
-                                        Margin="8,0,0,0"
-                                        Width="130"
-                                        Style="{StaticResource ToolbarButton}"
-                                        Click="BtnGraphResetFromTopology_Click"/>
-                            </StackPanel>
-
-                            <Grid Grid.Row="4" Grid.Column="0">
-                                <Border BorderThickness="1"
-                                        BorderBrush="{StaticResource BrushBorder}"
-                                        Background="#201814"
-                                        Height="360">
-                                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                                                  VerticalScrollBarVisibility="Auto">
-                                        <Canvas x:Name="GraphCanvas"
-                                                Width="700"
-                                                Height="700"
-                                                Background="#201814"/>
-                                    </ScrollViewer>
-                                </Border>
-                            </Grid>
-
-                            <ScrollViewer Grid.Row="2" Grid.RowSpan="3" Grid.Column="2"
-                                          VerticalScrollBarVisibility="Auto"
-                                          HorizontalScrollBarVisibility="Disabled">
-                                <StackPanel>
-                                    <TextBlock x:Name="TxtGraphSelectionTitle"
-                                               Text="No selection"
-                                               Style="{StaticResource SectionHeader}"/>
-                                    <TextBlock x:Name="TxtGraphSelectionHint"
-                                               Text="Click a node or edge to edit it. Drag from one node to another to create a connection."
-                                               Foreground="{StaticResource BrushTextDim}"
-                                               FontSize="12"
-                                               TextWrapping="Wrap"
-                                               Margin="0,4,0,8"/>
-
-                                    <StackPanel x:Name="PnlGraphZoneInspector" Visibility="Collapsed">
-                                        <TextBlock Text="Zone Name"/>
-                                        <TextBox x:Name="TxtGraphZoneName" TextChanged="GraphZoneEditor_Changed"/>
-                                        <TextBlock Text="Zone Type" Margin="0,8,0,0"/>
-                                        <ComboBox x:Name="CmbGraphZoneType" SelectionChanged="GraphZoneEditor_Changed"/>
-                                        <TextBlock Text="Layout Preset" Margin="0,8,0,0"/>
-                                        <ComboBox x:Name="CmbGraphZoneLayout" SelectionChanged="GraphZoneEditor_Changed"/>
-                                        <TextBlock Text="Castles" Margin="0,8,0,0"/>
-                                        <DockPanel>
-                                            <TextBlock x:Name="TxtGraphZoneCastlesValue" Text="0" DockPanel.Dock="Right"/>
-                                        </DockPanel>
-                                        <Slider x:Name="SldGraphZoneCastles"
-                                                Minimum="0"
-                                                Maximum="5"
-                                                TickFrequency="1"
-                                                IsSnapToTickEnabled="True"
-                                                ValueChanged="GraphZoneEditor_Changed"/>
-                                        <TextBlock Text="Relative Size" Margin="0,8,0,0"/>
-                                        <DockPanel>
-                                            <TextBlock x:Name="TxtGraphZoneSizeValue" Text="1.00x" DockPanel.Dock="Right"/>
-                                        </DockPanel>
-                                        <Slider x:Name="SldGraphZoneSize"
-                                                Minimum="0.25"
-                                                Maximum="3"
-                                                TickFrequency="0.05"
-                                                IsSnapToTickEnabled="True"
-                                                ValueChanged="GraphZoneEditor_Changed"/>
-                                    </StackPanel>
-
-                                    <StackPanel x:Name="PnlGraphConnectionInspector" Visibility="Collapsed">
-                                        <TextBlock x:Name="TxtGraphConnectionEndpoints"
-                                                   Text="Connection"
-                                                   Foreground="{StaticResource BrushTextDim}"
-                                                   Margin="0,0,0,8"/>
-                                        <TextBlock Text="Connection Type"/>
-                                        <ComboBox x:Name="CmbGraphConnectionTypeInspector" SelectionChanged="GraphConnectionEditor_Changed"/>
-                                        <TextBlock Text="Guard Mode" Margin="0,8,0,0"/>
-                                        <ComboBox x:Name="CmbGraphGuardMode" SelectionChanged="GraphConnectionEditor_Changed"/>
-                                        <TextBlock Text="Guard Scale" Margin="0,8,0,0"/>
-                                        <TextBox x:Name="TxtGraphGuardScale" TextChanged="GraphConnectionEditor_Changed"/>
-                                        <TextBlock Text="Absolute Guard Value" Margin="0,8,0,0"/>
-                                        <TextBox x:Name="TxtGraphGuardValue" TextChanged="GraphConnectionEditor_Changed"/>
-                                        <Button x:Name="BtnGraphResetGuard"
-                                                Content="Reset Guard To Automatic"
-                                                Margin="0,8,0,0"
-                                                Style="{StaticResource ToolbarButton}"
-                                                Click="BtnGraphResetGuard_Click"/>
-                                        <TextBlock Text="Guard Zone" Margin="0,8,0,0"/>
-                                        <ComboBox x:Name="CmbGraphGuardZone" SelectionChanged="GraphConnectionEditor_Changed"/>
-                                        <CheckBox x:Name="ChkGraphGuardEscape"
-                                                  Content="Guard Escape"
-                                                  Margin="0,8,0,0"
-                                                  Checked="GraphConnectionEditor_Changed"
-                                                  Unchecked="GraphConnectionEditor_Changed"/>
-                                        <CheckBox x:Name="ChkGraphSimTurnSquad"
-                                                  Content="Sim Turn Squad"
-                                                  Margin="0,4,0,0"
-                                                  Checked="GraphConnectionEditor_Changed"
-                                                  Unchecked="GraphConnectionEditor_Changed"/>
-                                        <CheckBox x:Name="ChkGraphConnectionRoad"
-                                                  Content="Road"
-                                                  Margin="0,4,0,0"
-                                                  Checked="GraphConnectionEditor_Changed"
-                                                  Unchecked="GraphConnectionEditor_Changed"/>
-                                        <TextBlock Text="Guard Weekly Increment" Margin="0,8,0,0"/>
-                                        <TextBox x:Name="TxtGraphGuardWeeklyIncrement" TextChanged="GraphConnectionEditor_Changed"/>
-                                        <TextBlock Text="Guard Match Group" Margin="0,8,0,0"/>
-                                        <TextBox x:Name="TxtGraphGuardMatchGroup" TextChanged="GraphConnectionEditor_Changed"/>
-                                        <TextBlock Text="Gate Placement" Margin="0,8,0,0"/>
-                                        <TextBox x:Name="TxtGraphGatePlacement" TextChanged="GraphConnectionEditor_Changed"/>
-                                        <TextBlock Text="Length" Margin="0,8,0,0"/>
-                                        <TextBox x:Name="TxtGraphConnectionLength" TextChanged="GraphConnectionEditor_Changed"/>
-                                        <TextBlock Text="Portal Rules From (JSON)" Margin="0,8,0,0"/>
-                                        <TextBox x:Name="TxtGraphPortalRulesFrom"
-                                                 AcceptsReturn="True"
-                                                 TextWrapping="Wrap"
-                                                 Height="80"
-                                                 VerticalScrollBarVisibility="Auto"
-                                                 TextChanged="GraphConnectionEditor_Changed"/>
-                                        <TextBlock Text="Portal Rules To (JSON)" Margin="0,8,0,0"/>
-                                        <TextBox x:Name="TxtGraphPortalRulesTo"
-                                                 AcceptsReturn="True"
-                                                 TextWrapping="Wrap"
-                                                 Height="80"
-                                                 VerticalScrollBarVisibility="Auto"
-                                                 TextChanged="GraphConnectionEditor_Changed"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </ScrollViewer>
-                        </Grid>
-                    </Border>
+                    <Button Grid.Row="2"
+                            x:Name="BtnOpenGraphEditor"
+                            Content="Graph Edit Mode"
+                            Style="{StaticResource ToolbarButton}"
+                            Click="BtnOpenGraphEditor_Click"/>
                 </Grid>
 
                 <CheckBox Grid.Row="8"

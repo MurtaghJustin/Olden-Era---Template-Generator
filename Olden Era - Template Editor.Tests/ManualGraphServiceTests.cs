@@ -89,4 +89,110 @@ public class ManualGraphServiceTests
         Assert.Equal(12345, direct.GuardValue);
         Assert.Equal("Portal", portal.ConnectionType);
     }
+
+    [Fact]
+    public void CreateFromTemplate_PreservesPreviewHints()
+    {
+        var template = new RmgTemplate
+        {
+            Variants =
+            [
+                new Variant
+                {
+                    Zones =
+                    [
+                        new Zone
+                        {
+                            Name = "Spawn-A",
+                            Layout = "zone_layout_spawns",
+                            GeneratorPosition = (0.25, 0.75),
+                            GeneratorRing = 0,
+                            MainObjects = [new MainObject { Type = "Spawn" }]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        ManualGraphDocument document = ManualGraphService.CreateFromTemplate(template, preferAutomaticGuards: true);
+        ManualGraphZone zone = Assert.Single(document.Zones);
+
+        Assert.Equal(0.25, zone.PreviewPositionX);
+        Assert.Equal(0.75, zone.PreviewPositionY);
+        Assert.Equal(0, zone.PreviewRing);
+    }
+
+    [Fact]
+    public void EnsurePreviewHints_FillsMissingHints()
+    {
+        var document = new ManualGraphDocument
+        {
+            Zones =
+            [
+                new ManualGraphZone
+                {
+                    Id = "p1",
+                    Name = "Spawn-A",
+                    ZoneType = ManualGraphZoneType.Player,
+                    Layout = "zone_layout_spawns",
+                    CastleCount = 1,
+                    Size = 1.0
+                },
+                new ManualGraphZone
+                {
+                    Id = "hub",
+                    Name = "Hub",
+                    ZoneType = ManualGraphZoneType.Hub,
+                    Layout = "zone_layout_center",
+                    CastleCount = 0,
+                    Size = 1.0
+                }
+            ]
+        };
+
+        ManualGraphService.EnsurePreviewHints(document);
+
+        Assert.All(document.Zones, zone =>
+        {
+            Assert.True(zone.PreviewPositionX.HasValue);
+            Assert.True(zone.PreviewPositionY.HasValue);
+            Assert.True(zone.PreviewRing.HasValue);
+        });
+        Assert.Equal(0.5, document.Zones[1].PreviewPositionX);
+        Assert.Equal(0.5, document.Zones[1].PreviewPositionY);
+    }
+
+    [Fact]
+    public void ApplySharedZoneDefaults_ResetsZonesToCurrentTypeDefaults()
+    {
+        var graph = new ManualGraphDocument
+        {
+            Zones =
+            [
+                new ManualGraphZone { Id = "p1", Name = "Spawn-A", ZoneType = ManualGraphZoneType.Player, Layout = "zone_layout_spawns", CastleCount = 3, Size = 1.7 },
+                new ManualGraphZone { Id = "n1", Name = "Low With Castle", ZoneType = ManualGraphZoneType.NeutralLow, Layout = "zone_layout_sides", CastleCount = 2, Size = 1.8 },
+                new ManualGraphZone { Id = "n2", Name = "Low No Castle", ZoneType = ManualGraphZoneType.NeutralLow, Layout = "zone_layout_sides", CastleCount = 0, Size = 1.8 },
+                new ManualGraphZone { Id = "hub", Name = "Hub", ZoneType = ManualGraphZoneType.Hub, Layout = "zone_layout_center", CastleCount = 5, Size = 2.5 }
+            ]
+        };
+
+        bool changed = ManualGraphService.ApplySharedZoneDefaults(
+            graph,
+            playerCastleCount: 1,
+            neutralCastleCount: 4,
+            hubCastleCount: 2,
+            playerZoneSize: 1.1,
+            neutralZoneSize: 0.8,
+            hubZoneSize: 1.4);
+
+        Assert.True(changed);
+        Assert.Equal(1, graph.Zones[0].CastleCount);
+        Assert.Equal(1.1, graph.Zones[0].Size);
+        Assert.Equal(4, graph.Zones[1].CastleCount);
+        Assert.Equal(0.8, graph.Zones[1].Size);
+        Assert.Equal(0, graph.Zones[2].CastleCount);
+        Assert.Equal(0.8, graph.Zones[2].Size);
+        Assert.Equal(2, graph.Zones[3].CastleCount);
+        Assert.Equal(1.4, graph.Zones[3].Size);
+    }
 }
