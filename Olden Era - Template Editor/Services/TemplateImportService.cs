@@ -70,9 +70,10 @@ namespace Olden_Era___Template_Editor.Services
             var win = gameRules?.WinConditions;
             int heroInc = Math.Clamp(gameRules?.HeroCountIncrement ?? 1, 1, 12);
             int exportedHeroMin = gameRules?.HeroCountMin ?? 3;
+            int heroMax = Math.Clamp(gameRules?.HeroCountMax ?? 8, 1, 12);
             settings.HeroCountIncrement = heroInc;
-            settings.HeroCountMin = Math.Clamp(exportedHeroMin + heroInc, 1, 12);
-            settings.HeroCountMax = Math.Clamp(gameRules?.HeroCountMax ?? 8, 1, 12);
+            settings.HeroCountMax = heroMax;
+            settings.HeroCountMin = Math.Clamp(exportedHeroMin + heroInc, 1, heroMax);
 
             settings.FactionLawsExpPercent = ModifierToPercent(gameRules?.FactionLawsExpModifier, 100);
             settings.AstrologyExpPercent = ModifierToPercent(gameRules?.AstrologyExpModifier, 100);

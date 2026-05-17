@@ -156,4 +156,26 @@ public class TemplateImportServiceTests
         Assert.Equal("win_condition_6", imported.VictoryCondition);
         Assert.Equal(MapTopology.Default, imported.Topology);
     }
+
+    [Fact]
+    public void ImportToSettings_FromGameNativeSingleHeroTemplate_HeroCountMinIsOne()
+    {
+        // Game-native templates store heroCountMin as the actual value (not uiMin - increment).
+        // A single-hero template has heroCountMin=1, heroCountMax=1, heroCountIncrement=1.
+        // The importer must not return heroCountMin=2 by blindly adding the increment.
+        var template = new RmgTemplate
+        {
+            GameRules = new OldenEraTemplateEditor.Models.GameRules
+            {
+                HeroCountMin = 1,
+                HeroCountMax = 1,
+                HeroCountIncrement = 1
+            }
+        };
+
+        SettingsFile imported = TemplateImportService.ImportToSettings(template);
+
+        Assert.Equal(1, imported.HeroCountMin);
+        Assert.Equal(1, imported.HeroCountMax);
+    }
 }
