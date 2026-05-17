@@ -756,13 +756,13 @@ namespace Olden_Era___Template_Editor
             if (totalZones > 10)
             {
                 int playerCastles = (int)SldPlayerCastles.Value;
-                int neutralCastles = _advancedZoneSettings ? 0 : (int)SldNeutralCastles.Value;
+                int neutralCastles = (int)SldNeutralCastles.Value;
                 if (playerCastles > 1 || neutralCastles > 1)
                     warnings.Add(new ValidationMessage("Using more than 1 castle per zone with more than 10 total zones may cause the game to freeze when generating the map. Consider reducing the number of castles.", warnBrush));
             }
 
             int minNeutralBetweenPlayers = (int)SldMinNeutralBetweenPlayers.Value;
-            if (_advancedZoneSettings && minNeutralBetweenPlayers > 0)
+            if (minNeutralBetweenPlayers > 0)
             {
                 var separationSettings = new GeneratorSettings
                 {
@@ -806,32 +806,19 @@ namespace Olden_Era___Template_Editor
 
             if (selectedVictoryCondition == "win_condition_6")
             {
-                // Each neutral zone type must be divisible by 2 so both players get an
-                // identical cluster. Check per-tier counts in advanced mode, total in simple mode.
-                if (_advancedZoneSettings)
+                // Each neutral zone tier must be divisible by 2 so both players get an identical cluster.
+                var oddTiers = new System.Collections.Generic.List<string>();
+                if ((int)SldNeutralLowNoCastle.Value    % 2 != 0) oddTiers.Add("Low (no castle)");
+                if ((int)SldNeutralLowCastle.Value      % 2 != 0) oddTiers.Add("Low (castle)");
+                if ((int)SldNeutralMediumNoCastle.Value % 2 != 0) oddTiers.Add("Medium (no castle)");
+                if ((int)SldNeutralMediumCastle.Value   % 2 != 0) oddTiers.Add("Medium (castle)");
+                if ((int)SldNeutralHighNoCastle.Value   % 2 != 0) oddTiers.Add("High (no castle)");
+                if ((int)SldNeutralHighCastle.Value     % 2 != 0) oddTiers.Add("High (castle)");
+                if (oddTiers.Count > 0)
                 {
-                    var oddTiers = new System.Collections.Generic.List<string>();
-                    if ((int)SldNeutralLowNoCastle.Value    % 2 != 0) oddTiers.Add("Low (no castle)");
-                    if ((int)SldNeutralLowCastle.Value      % 2 != 0) oddTiers.Add("Low (castle)");
-                    if ((int)SldNeutralMediumNoCastle.Value % 2 != 0) oddTiers.Add("Medium (no castle)");
-                    if ((int)SldNeutralMediumCastle.Value   % 2 != 0) oddTiers.Add("Medium (castle)");
-                    if ((int)SldNeutralHighNoCastle.Value   % 2 != 0) oddTiers.Add("High (no castle)");
-                    if ((int)SldNeutralHighCastle.Value     % 2 != 0) oddTiers.Add("High (castle)");
-                    if (oddTiers.Count > 0)
-                    {
-                        SetValidationError($"Tournament mode requires each neutral zone type to be divisible by 2 for a fair layout. Odd count: {string.Join(", ", oddTiers)}.");
-                        BtnPreview.IsEnabled = false;
-                        return false;
-                    }
-                }
-                else
-                {
-                    if ((int)SldNeutral.Value % 2 != 0)
-                    {
-                        SetValidationError("Tournament mode requires the total number of neutral zones to be divisible by 2 for a fair layout.");
-                        BtnPreview.IsEnabled = false;
-                        return false;
-                    }
+                    SetValidationError($"Tournament mode requires each neutral zone type to be divisible by 2 for a fair layout. Odd count: {string.Join(", ", oddTiers)}.");
+                    BtnPreview.IsEnabled = false;
+                    return false;
                 }
             }
 
@@ -846,9 +833,6 @@ namespace Olden_Era___Template_Editor
 
         private int TotalNeutralZonesFromUi()
         {
-            if (!_advancedZoneSettings)
-                return (int)SldNeutral.Value;
-
             return (int)SldNeutralLowNoCastle.Value
                 + (int)SldNeutralLowCastle.Value
                 + (int)SldNeutralMediumNoCastle.Value
@@ -1564,6 +1548,52 @@ namespace Olden_Era___Template_Editor
 
         // -- Settings persistence -----------------------------------------------
 
+        /// <summary>
+        /// Restores a <see cref="ZoneMandatoryContent"/> from the new row-based save format.
+        /// Each <see cref="ZoneContentRowSave"/> maps to exactly one UI row, preserving Count
+        /// and row identity.  Falls back to <paramref name="defaultInit"/> when the list is empty.
+        /// </summary>
+        private void ApplyZoneContentRows(ZoneMandatoryContent target, List<ZoneContentRowSave>? rows, Action defaultInit)
+        {
+            target.Clear();
+
+            if (rows is null || rows.Count == 0)
+            {
+                defaultInit();
+                return;
+            }
+
+            foreach (var row in rows)
+            {
+                if (string.IsNullOrWhiteSpace(row.Sid)) continue;
+
+                SidMapping? sidMapping = GlobalContent.GetBySid(row.Sid);
+                if (sidMapping is null) continue;
+
+                var item = CreateZoneContentItem(
+                    sidMapping,
+                    count:        row.Count,
+                    isGuarded:    row.IsGuarded,
+                    nearCastle:   row.NearCastle,
+                    roadDistance: row.RoadDistance);
+
+                if (row.IsMine)
+                    target.mines.Add(item);
+                else if (IsContentItemGroupSid(row.Sid, ContentItemGroup.UnitRecruitment))
+                    target.unitRecruitment.Add(item);
+                else if (IsContentItemGroupSid(row.Sid, ContentItemGroup.ResourceBanks))
+                    target.resourceBanks.Add(item);
+                else if (IsContentItemGroupSid(row.Sid, ContentItemGroup.UtilityStructures))
+                    target.utilityStructures.Add(item);
+                else if (IsContentItemGroupSid(row.Sid, ContentItemGroup.HeroImprovementStructures))
+                    target.heroImprovementStructures.Add(item);
+                else if (IsContentItemGroupSid(row.Sid, ContentItemGroup.Treasures))
+                    target.treasures.Add(item);
+                else
+                    target.utilityStructures.Add(item); // safe fallback
+            }
+        }
+
         private SettingsFile GatherSettings() => new()
         {
             TemplateName          = TxtTemplateName.Text.Trim(),
@@ -1622,11 +1652,12 @@ namespace Olden_Era___Template_Editor
             BannedMagics       = string.Join("\n", _bannedMagics.Select(e => e.Id)),
             ValueOverridesText = TxtValueOverrides.Text,
             BonusesJson        = string.Join("\n", _bonuses.Select(b => b.ToString())),
-            PlayerZoneMandatoryContent  = BuildPlayerZoneMandatoryContentFromUi(),
-            LowNeutralMandatoryContent   = BuildZoneMandatoryContentFromUi(_lowNeutralMandatoryContent),
-            MediumNeutralMandatoryContent = BuildZoneMandatoryContentFromUi(_mediumNeutralMandatoryContent),
-            HighNeutralMandatoryContent  = BuildZoneMandatoryContentFromUi(_highNeutralMandatoryContent),
-            HubZoneMandatoryContent      = BuildZoneMandatoryContentFromUi(_hubZoneMandatoryContent),
+            // New format: save UI rows verbatim so Count and row identity are preserved.
+            PlayerZoneContentRows      = BuildZoneContentRows(_playerZoneMandatoryContent),
+            LowNeutralContentRows      = BuildZoneContentRows(_lowNeutralMandatoryContent),
+            MediumNeutralContentRows   = BuildZoneContentRows(_mediumNeutralMandatoryContent),
+            HighNeutralContentRows     = BuildZoneContentRows(_highNeutralMandatoryContent),
+            HubZoneContentRows         = BuildZoneContentRows(_hubZoneMandatoryContent),
         };
 
         private void ApplySettings(SettingsFile s)
@@ -1711,11 +1742,11 @@ namespace Olden_Era___Template_Editor
             LoadBanList(_bannedMagics, s.BannedMagics, isMagics: true);
             LoadBonusList(s.BonusesJson);
             TxtValueOverrides.Text = s.ValueOverridesText;
-            ApplyPlayerZoneMandatoryContentFromSettings(s.PlayerZoneMandatoryContent);
-            ApplyZoneMandatoryContentFromSettings(_lowNeutralMandatoryContent, s.LowNeutralMandatoryContent, InitializeDefaultLowNeutralContents);
-            ApplyZoneMandatoryContentFromSettings(_mediumNeutralMandatoryContent, s.MediumNeutralMandatoryContent, InitializeDefaultMediumNeutralContents);
-            ApplyZoneMandatoryContentFromSettings(_highNeutralMandatoryContent, s.HighNeutralMandatoryContent, InitializeDefaultHighNeutralContents);
-            ApplyZoneMandatoryContentFromSettings(_hubZoneMandatoryContent, s.HubZoneMandatoryContent, InitializeDefaultHubZoneContents);
+            ApplyZoneContentRows(_playerZoneMandatoryContent,  s.PlayerZoneContentRows,    InitializeDefaultPlayerZoneContents);
+            ApplyZoneContentRows(_lowNeutralMandatoryContent,  s.LowNeutralContentRows,    InitializeDefaultLowNeutralContents);
+            ApplyZoneContentRows(_mediumNeutralMandatoryContent, s.MediumNeutralContentRows, InitializeDefaultMediumNeutralContents);
+            ApplyZoneContentRows(_highNeutralMandatoryContent, s.HighNeutralContentRows,   InitializeDefaultHighNeutralContents);
+            ApplyZoneContentRows(_hubZoneMandatoryContent,     s.HubZoneContentRows,       InitializeDefaultHubZoneContents);
             UpdateValueLabels();
             UpdateAdvancedZoneSettingsVisibility();
             UpdatePlayerCastleFactionVisibility();
@@ -2104,197 +2135,37 @@ namespace Olden_Era___Template_Editor
             return result;
         }
 
-        /* Generic version of ApplyPlayerZoneMandatoryContentFromSettings for neutral/hub zone collections. */
-        private void ApplyZoneMandatoryContentFromSettings(ZoneMandatoryContent target, List<ContentItem>? contentItems, Action defaultInit)
+        /// <summary>
+        /// Serializes a zone's UI rows directly as <see cref="ZoneContentRowSave"/> records,
+        /// preserving Count and row identity so that two separate sawmill rows remain two rows
+        /// after a round-trip (unlike the legacy ContentItem expansion path).
+        /// </summary>
+        private static List<ZoneContentRowSave> BuildZoneContentRows(ZoneMandatoryContent content)
         {
-            target.Clear();
-
-            if (contentItems is null || contentItems.Count == 0)
+            var rows = new List<ZoneContentRowSave>();
+            foreach (var item in content.AllItems)
             {
-                defaultInit();
-                return;
+                if (item.SidMapping == null) continue;
+                rows.Add(new ZoneContentRowSave
+                {
+                    Sid          = item.SidMapping.Sid,
+                    Count        = item.Count,
+                    IsGroup      = item.IsGroup,
+                    IsGuarded    = item.IsGuarded,
+                    NearCastle   = item.NearCastle,
+                    RoadDistance = item.RoadDistance ?? "Any",
+                    IsMine       = content.mines.Contains(item),
+                });
             }
-
-            var groupedItems = new Dictionary<PlayerZoneContentKey, int>();
-
-            foreach (var contentItem in contentItems)
-            {
-                bool isGroup = contentItem.IncludeLists is { Count: > 0 };
-                string? sid = isGroup ? contentItem.IncludeLists![0] : contentItem.Sid;
-
-                if (string.IsNullOrWhiteSpace(sid)) continue;
-
-                SidMapping? sidMapping = GlobalContent.GetBySid(sid);
-                if (sidMapping is null) continue;
-
-                bool isMine = contentItem.IsMine == true;
-                bool isGuarded = contentItem.IsGuarded == true;
-                bool nearCastle = HasNearCastleRule(contentItem.Rules);
-                string roadDistance = GetRoadDistanceLabel(contentItem.Rules);
-
-                var key = new PlayerZoneContentKey(sidMapping.Sid, isMine, isGuarded, nearCastle, roadDistance);
-
-                groupedItems[key] = groupedItems.TryGetValue(key, out int c) ? c + 1 : 1;
-            }
-
-            foreach (var kvp in groupedItems)
-            {
-                SidMapping? sidMapping = GlobalContent.GetBySid(kvp.Key.Sid);
-                if (sidMapping is null) continue;
-
-                var uiItem = CreateZoneContentItem(
-                    sidMapping,
-                    count: kvp.Value,
-                    isGuarded: kvp.Key.IsGuarded,
-                    nearCastle: kvp.Key.NearCastle,
-                    roadDistance: kvp.Key.RoadDistance);
-
-                if (IsContentItemGroupSid(kvp.Key.Sid, ContentItemGroup.Mines))
-                    target.mines.Add(uiItem);
-                else if (IsContentItemGroupSid(kvp.Key.Sid, ContentItemGroup.UnitRecruitment))
-                    target.unitRecruitment.Add(uiItem);
-                else if (IsContentItemGroupSid(kvp.Key.Sid, ContentItemGroup.ResourceBanks))
-                    target.resourceBanks.Add(uiItem);
-                else if (IsContentItemGroupSid(kvp.Key.Sid, ContentItemGroup.UtilityStructures))
-                    target.utilityStructures.Add(uiItem);
-                else if (IsContentItemGroupSid(kvp.Key.Sid, ContentItemGroup.HeroImprovementStructures))
-                    target.heroImprovementStructures.Add(uiItem);
-                else if (IsContentItemGroupSid(kvp.Key.Sid, ContentItemGroup.Treasures))
-                    target.treasures.Add(uiItem);
-            }
+            return rows;
         }
 
-        /* Loading settings from file to restore UI state */
-        private void ApplyPlayerZoneMandatoryContentFromSettings(List<ContentItem>? contentItems)
-        {
-            _playerZoneMandatoryContent.Clear();
-
-            if (contentItems is null || contentItems.Count == 0)
-            {
-                InitializeDefaultPlayerZoneContents();
-                return;
-            }
-            /* Categorize the content items */
-            var groupedItems = new Dictionary<PlayerZoneContentKey, int>();
-
-            foreach (var contentItem in contentItems)
-            {
-                /* We need to parse the "real" content item data to get the SID for our mapping. Grouped entries from IncludeListIds have their "sid" as name of the include list. */
-                bool isGroup = contentItem.IncludeLists is { Count: > 0 };
-                string? sid = isGroup
-                    ? contentItem.IncludeLists![0]
-                    : contentItem.Sid;
-
-                if (string.IsNullOrWhiteSpace(sid))
-                    continue;
-
-                SidMapping? sidMapping = GlobalContent.GetBySid(sid);
-                if (sidMapping is null)
-                    continue;
-
-                bool isMine = contentItem.IsMine == true;
-                bool isGuarded = contentItem.IsGuarded == true;
-                bool nearCastle = HasNearCastleRule(contentItem.Rules);
-                string roadDistance = GetRoadDistanceLabel(contentItem.Rules);
-
-                var key = new PlayerZoneContentKey(
-                    sidMapping.Sid,
-                    isMine,
-                    isGuarded,
-                    nearCastle,
-                    roadDistance);
-
-                if (groupedItems.TryGetValue(key, out int currentCount))
-                {
-                    groupedItems[key] = currentCount + 1;
-                }
-                else
-                {
-                    groupedItems[key] = 1;
-                }
-            }
-            /* Add categorized content items to proper content lists */
-            foreach (var kvp in groupedItems)
-            {
-                SidMapping? sidMapping = GlobalContent.GetBySid(kvp.Key.Sid);
-                if (sidMapping is null)
-                    continue;
-
-                var uiItem = CreateZoneContentItem(
-                    sidMapping,
-                    count: kvp.Value,
-                    isGuarded: kvp.Key.IsGuarded,
-                    nearCastle: kvp.Key.NearCastle,
-                    roadDistance: kvp.Key.RoadDistance);
-
-                if (IsContentItemGroupSid(kvp.Key.Sid, ContentItemGroup.Mines))
-                {
-                    _playerZoneMandatoryContent.mines.Add(uiItem);
-                }
-                else if (IsContentItemGroupSid(kvp.Key.Sid, ContentItemGroup.UnitRecruitment))
-                {
-                    _playerZoneMandatoryContent.unitRecruitment.Add(uiItem);
-                }
-                else if (IsContentItemGroupSid(kvp.Key.Sid, ContentItemGroup.ResourceBanks))
-                {
-                    _playerZoneMandatoryContent.resourceBanks.Add(uiItem);
-                }
-                else if (IsContentItemGroupSid(kvp.Key.Sid, ContentItemGroup.UtilityStructures))
-                {
-                    _playerZoneMandatoryContent.utilityStructures.Add(uiItem);
-                }
-                else if (IsContentItemGroupSid(kvp.Key.Sid, ContentItemGroup.HeroImprovementStructures))
-                {
-                    _playerZoneMandatoryContent.heroImprovementStructures.Add(uiItem);
-                }
-                else if(IsContentItemGroupSid(kvp.Key.Sid, ContentItemGroup.Treasures))
-                {
-                    _playerZoneMandatoryContent.treasures.Add(uiItem);
-                }
-            }
-        }
-
-        private static bool HasNearCastleRule(List<ContentPlacementRule>? rules)
-            => rules?.Any(rule =>
-                string.Equals(rule.Type, "MainObject", StringComparison.OrdinalIgnoreCase) &&
-                rule.Args?.Any(arg => arg == "0") == true) == true;
-
-        private static string GetRoadDistanceLabel(List<ContentPlacementRule>? rules)
-        {
-            ContentPlacementRule? roadRule = rules?.FirstOrDefault(rule =>
-                string.Equals(rule.Type, "Road", StringComparison.OrdinalIgnoreCase));
-
-            if (roadRule is null || roadRule.TargetMin is null || roadRule.TargetMax is null)
-                return "Any";
-
-            double min = roadRule.TargetMin.Value;
-            double max = roadRule.TargetMax.Value;
-
-            if (IsDistance(min, max, DistancePresets.NextTo)) return "Next To";
-            if (IsDistance(min, max, DistancePresets.Near)) return "Near";
-            if (IsDistance(min, max, DistancePresets.Far)) return "Far";
-            if (IsDistance(min, max, DistancePresets.VeryFar)) return "Very Far";
-            if (IsDistance(min, max, DistancePresets.Medium)) return "Medium";
-
-            return "Medium";
-        }
-
-        private static bool IsDistance(double min, double max, DistanceVariation preset)
-            => Math.Abs(min - preset.Min) < 0.0001 && Math.Abs(max - preset.Max) < 0.0001;
-        
         /* Helper function for checking if a SID belongs to a content item group */
         private static bool IsContentItemGroupSid(string sid, List<SidMapping> groupItems)
             => groupItems.Any(item => string.Equals(item.Sid, sid, StringComparison.OrdinalIgnoreCase));
 
-        private readonly record struct PlayerZoneContentKey(
-            string Sid,
-            bool IsMine,
-            bool IsGuarded,
-            bool NearCastle,
-            string RoadDistance);
-
         /// <summary>
-        /// Returns true when <paramref name="filePath"/> is inside the expected game templates folder
+        /// Returns true when
         /// (including any sub-folders, since the game supports those).
         /// If <paramref name="gameTemplatesPath"/> was resolved, a prefix match is used.
         /// Otherwise the chosen directory is checked against the known folder-structure tail
