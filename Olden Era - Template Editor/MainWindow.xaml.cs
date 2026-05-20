@@ -1087,6 +1087,31 @@ namespace Olden_Era___Template_Editor
             MarkDirty();
             Validate();
         }
+
+        private void ChkSingleHeroMode_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!IsInitialized) return;
+            bool single = ChkSingleHeroMode.IsChecked == true;
+            SldHeroMin.IsEnabled = !single;
+            SldHeroMax.IsEnabled = !single;
+            SldHeroIncrement.IsEnabled = !single;
+            if (single)
+            {
+                TxtHeroMin.Text = "1";
+                TxtHeroMax.Text = "1";
+                TxtHeroIncrement.Text = "1";
+                ChkLostStartHero.IsChecked = true;
+            }
+            else
+            {
+                UpdateValueLabels();
+                // Restore the checkbox to unchecked unless a win condition forces it
+                ChkLostStartHero.IsChecked = false;
+                UpdateWinConditionDetailVisibility();
+            }
+            MarkDirty();
+            Validate();
+        }
         private bool _advancedZoneSettings = false;
 
         private void BtnAdvancedZoneSettings_Click(object sender, RoutedEventArgs e)
@@ -1145,7 +1170,7 @@ namespace Olden_Era___Template_Editor
         private void ApplyVictoryPreset(string victoryCondition)
         {
             ChkLostStartCity.IsChecked = false;
-            ChkLostStartHero.IsChecked = false;
+            if (ChkSingleHeroMode.IsChecked != true) ChkLostStartHero.IsChecked = false;
             ChkCityHold.IsChecked = false;
             ChkGladiatorArena.IsChecked = false;
             ChkTournament.IsChecked = false;
@@ -1196,7 +1221,6 @@ namespace Olden_Era___Template_Editor
                 // Tournament is exclusive — force it on and disable all other conditions.
                 ChkTournament.IsChecked = true;
                 ChkLostStartCity.IsChecked = false;
-                ChkLostStartHero.IsChecked = false;
                 ChkCityHold.IsChecked = false;
                 ChkGladiatorArena.IsChecked = false;
             }
@@ -1216,7 +1240,7 @@ namespace Olden_Era___Template_Editor
             }
 
             ChkLostStartCity.IsEnabled = !isTournament && selectedVictoryCondition != "win_condition_3";
-            ChkLostStartHero.IsEnabled = !isTournament && selectedVictoryCondition != "win_condition_4";
+            ChkLostStartHero.IsEnabled = ChkSingleHeroMode.IsChecked != true && selectedVictoryCondition != "win_condition_4";
             ChkCityHold.IsEnabled = !isTournament && selectedVictoryCondition != "win_condition_5";
             ChkGladiatorArena.IsEnabled = !isTournament && selectedVictoryCondition != "win_condition_4";
             ChkTournament.IsChecked = isTournament;
@@ -1620,6 +1644,7 @@ namespace Olden_Era___Template_Editor
             HeroCountMin          = (int)SldHeroMin.Value,
             HeroCountMax          = (int)SldHeroMax.Value,
             HeroCountIncrement    = (int)SldHeroIncrement.Value,
+            SingleHeroMode        = ChkSingleHeroMode.IsChecked == true,
             Topology              = TopologyOptions[CmbTopology.SelectedIndex].Topology,
             RandomPortals         = ChkRandomPortals.IsChecked == true,
             MaxPortalConnections  = (int)SldMaxPortals.Value,
@@ -1709,6 +1734,7 @@ namespace Olden_Era___Template_Editor
             SldHeroMin.Value        = s.HeroCountMin;
             SldHeroMax.Value        = s.HeroCountMax;
             SldHeroIncrement.Value  = s.HeroCountIncrement;
+            ChkSingleHeroMode.IsChecked = s.SingleHeroMode;
             int topoIdx = Array.FindIndex(TopologyOptions, t => t.Topology == s.Topology);
             if (topoIdx >= 0) CmbTopology.SelectedIndex = topoIdx;
             ChkRandomPortals.IsChecked        = s.RandomPortals;
@@ -1727,7 +1753,7 @@ namespace Olden_Era___Template_Editor
             SldAstrologyExp.Value = Math.Clamp(s.AstrologyExpPercent, 25, 200);
             ChkLostStartCity.IsChecked = s.LostStartCity;
             SldLostStartCityDay.Value = Math.Clamp(s.LostStartCityDay, 1, 30);
-            ChkLostStartHero.IsChecked = s.LostStartHero;
+            ChkLostStartHero.IsChecked = s.LostStartHero || s.SingleHeroMode;
             ChkCityHold.IsChecked = s.CityHold;
             SldCityHoldDays.Value = Math.Clamp(s.CityHoldDays, 1, 30);
             ChkGladiatorArena.IsChecked = s.GladiatorArena;
@@ -1930,6 +1956,7 @@ namespace Olden_Era___Template_Editor
         {
             TemplateName = TxtTemplateName.Text.Trim(),
             GameMode = CmbGameMode.SelectedItem as string ?? "Classic",
+            SingleHeroMode = ChkSingleHeroMode.IsChecked == true,
             PlayerCount = (int)SldPlayers.Value,
             HeroSettings = new HeroSettings
             {

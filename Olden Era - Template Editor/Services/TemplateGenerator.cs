@@ -64,7 +64,7 @@ namespace Olden_Era___Template_Editor.Services
             var template = new RmgTemplate
             {
                 Name = settings.TemplateName,
-                GameMode = settings.GameMode,
+                GameMode = settings.SingleHeroMode ? "SingleHero" : settings.GameMode,
                 Description = BuildTemplateDescription(settings, neutralCount),
                 DisplayWinCondition = effectiveVictoryCondition,
                 SizeX = settings.MapSize,
@@ -338,10 +338,10 @@ namespace Olden_Era___Template_Editor.Services
 
         private static GameRules BuildGameRules(GeneratorSettings settings, string effectiveVictoryCondition) => new()
         {
-            HeroCountMin = settings.HeroSettings.HeroCountMin-settings.HeroSettings.HeroCountIncrement,
-            HeroCountMax = settings.HeroSettings.HeroCountMax,
-            HeroCountIncrement = settings.HeroSettings.HeroCountIncrement,
-            HeroHireBan = false,
+            HeroCountMin = settings.SingleHeroMode ? 1 : settings.HeroSettings.HeroCountMin - settings.HeroSettings.HeroCountIncrement,
+            HeroCountMax = settings.SingleHeroMode ? 1 : settings.HeroSettings.HeroCountMax,
+            HeroCountIncrement = settings.SingleHeroMode ? 1 : settings.HeroSettings.HeroCountIncrement,
+            HeroHireBan = settings.SingleHeroMode,
             EncounterHoles = false,
             FactionLawsExpModifier = PercentToModifier(settings.FactionLawsExpPercent),
             AstrologyExpModifier = PercentToModifier(settings.AstrologyExpPercent),

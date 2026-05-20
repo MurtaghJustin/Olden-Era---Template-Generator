@@ -64,6 +64,7 @@ namespace Olden_Era___Template_Editor.Models
     {
         public string TemplateName { get; set; } = "Custom Template";
         public string GameMode { get; set; } = "Classic";
+        public bool SingleHeroMode { get; set; } = false;
         public int PlayerCount { get; set; } = 2;
         public int MapSize { get; set; } = 160;
         public HeroSettings HeroSettings { get; set; } = new HeroSettings();

@@ -262,7 +262,10 @@
                                     TickFrequency="1" IsSnapToTickEnabled="True"
                                     ValueChanged="Slider_ValueChanged"/>
                         </Grid>
-
+                        <CheckBox x:Name="ChkSingleHeroMode" Content="Single hero mode"
+                                  Margin="5,8,5,2" VerticalContentAlignment="Center"
+                                  Checked="ChkSingleHeroMode_Changed"
+                                  Unchecked="ChkSingleHeroMode_Changed"/>
                     </StackPanel>
                     </ScrollViewer>
                 </Border>

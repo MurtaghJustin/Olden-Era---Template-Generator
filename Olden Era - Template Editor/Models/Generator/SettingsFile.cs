@@ -34,6 +34,7 @@ namespace Olden_Era___Template_Editor.Models
         [JsonPropertyName("heroMin")]           public int     HeroCountMin           { get; set; } = 4;
         [JsonPropertyName("heroMax")]           public int     HeroCountMax           { get; set; } = 8;
         [JsonPropertyName("heroIncrement")]     public int     HeroCountIncrement     { get; set; } = 1;
+        [JsonPropertyName("singleHeroMode")]    public bool    SingleHeroMode         { get; set; } = false;
         [JsonPropertyName("topology")]          public MapTopology Topology           { get; set; } = MapTopology.Balanced;
         [JsonPropertyName("randomPortals")]     public bool    RandomPortals          { get; set; } = false;
         [JsonPropertyName("maxPortalConns")]    public int     MaxPortalConnections   { get; set; } = 32;
