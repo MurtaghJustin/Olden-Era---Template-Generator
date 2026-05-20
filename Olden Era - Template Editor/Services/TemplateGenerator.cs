@@ -1036,7 +1036,7 @@ namespace Olden_Era___Template_Editor.Services
 
                 if (i == 0)
                     zones.Add(BuildSpawnZone(letter, $"Player{playerIndex + 1}", myConns.ToArray(),
-                        settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions,
+                        settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.PlayerStartsWithCastles,
                         settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning));
                 else
                     zones.Add(BuildNeutralZone(neutralByLetter[letter], myConns.ToArray(),
@@ -1126,7 +1126,7 @@ namespace Olden_Era___Template_Editor.Services
 
                 if (i == 0)
                     zones.Add(BuildSpawnZone(letter, $"Player{playerIndex + 1}", myConns,
-                        settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions,
+                        settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.PlayerStartsWithCastles,
                         settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning));
                 else
                     zones.Add(BuildNeutralZone(neutralByLetter[letter], myConns,
@@ -1203,7 +1203,7 @@ namespace Olden_Era___Template_Editor.Services
 
                 if (i == 0)
                     zones.Add(BuildSpawnZone(letter, $"Player{playerIndex + 1}", [connName],
-                        settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions,
+                        settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.PlayerStartsWithCastles,
                         settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning));
                 else
                     zones.Add(BuildNeutralZone(neutralByLetter[letter], [connName],
@@ -1309,12 +1309,11 @@ namespace Olden_Era___Template_Editor.Services
                 Zone zone;
                 if (i == 0)
                     zone = BuildSpawnZone(letter, $"Player{playerIndex + 1}", myConns,
-                        settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions,
+                        settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.PlayerStartsWithCastles,
                         settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning);
                 else
                     zone = BuildNeutralZone(neutralByLetter[letter], myConns,
-                        settings.ZoneCfg.Advanced.NeutralZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning);
-                // Stamp preview position so the renderer places each cluster in its own canvas half.
+                        settings.ZoneCfg.Advanced.NeutralZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning);                // Stamp preview position so the renderer places each cluster in its own canvas half.
                 if (i < previewPositions.Count)
                     zone.GeneratorPosition = previewPositions[i];
                 zones.Add(zone);
@@ -1493,7 +1492,7 @@ namespace Olden_Era___Template_Editor.Services
                 Zone zone;
                 if (letter == playerLetter)
                     zone = BuildSpawnZone(letter, $"Player{playerIndex + 1}", myConns,
-                        settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions,
+                        settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.PlayerStartsWithCastles,
                         settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning);
                 else
                     zone = BuildNeutralZone(neutralByLetter[letter], myConns,
@@ -1541,7 +1540,7 @@ namespace Olden_Era___Template_Editor.Services
 
                 int playerIdx = playerLetters.IndexOf(letter);
                 if (playerIdx >= 0)
-                    zones.Add(BuildSpawnZone(letter, $"Player{playerIdx + 1}", myConns, settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning));
+                    zones.Add(BuildSpawnZone(letter, $"Player{playerIdx + 1}", myConns, settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.PlayerStartsWithCastles, settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning));
                 else
                     zones.Add(BuildNeutralZone(neutralByLetter[letter], myConns, settings.ZoneCfg.Advanced.NeutralZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning, letter == holdCityNeutralLetter));
             }
@@ -1611,7 +1610,7 @@ namespace Olden_Era___Template_Editor.Services
                 int playerIdx = playerLetters.IndexOf(letter);
                 Zone zone;
                 if (playerIdx >= 0)
-                    zone = BuildSpawnZone(letter, $"Player{playerIdx + 1}", myConns, settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning);
+                    zone = BuildSpawnZone(letter, $"Player{playerIdx + 1}", myConns, settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.PlayerStartsWithCastles, settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning);
                 else
                     zone = BuildNeutralZone(neutralByLetter[letter], myConns, settings.ZoneCfg.Advanced.NeutralZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning, letter == holdCityNeutralLetter);
                 // Stamp the Delaunay position so the preview can reproduce the exact geometry.
@@ -1783,7 +1782,7 @@ namespace Olden_Era___Template_Editor.Services
                 int playerIdx = playerLetters.IndexOf(letter);
                 Zone zone;
                 if (playerIdx >= 0)
-                    zone = BuildSpawnZone(letter, $"Player{playerIdx + 1}", myConns, settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning);
+                    zone = BuildSpawnZone(letter, $"Player{playerIdx + 1}", myConns, settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.PlayerStartsWithCastles, settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning);
                 else
                     zone = BuildNeutralZone(neutralByLetter[letter], myConns, settings.ZoneCfg.Advanced.NeutralZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning, letter == holdCityNeutralLetter);
                 // Stamp the position and tier so the preview can reproduce the exact geometry.
@@ -2025,7 +2024,7 @@ namespace Olden_Era___Template_Editor.Services
                 var spokeConns = new[] { $"Hub-{letter}" };
                 int playerIdx = playerLetters.IndexOf(letter);
                 if (playerIdx >= 0)
-                    zones.Add(BuildSpawnZone(letter, $"Player{playerIdx + 1}", spokeConns, settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning));
+                    zones.Add(BuildSpawnZone(letter, $"Player{playerIdx + 1}", spokeConns, settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.PlayerStartsWithCastles, settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning));
                 else
                     zones.Add(BuildNeutralZone(neutralByLetter[letter], spokeConns, settings.ZoneCfg.Advanced.NeutralZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning));
             }
@@ -2130,7 +2129,7 @@ namespace Olden_Era___Template_Editor.Services
 
                 int playerIdx = playerLetters.IndexOf(letter);
                 if (playerIdx >= 0)
-                    zones.Add(BuildSpawnZone(letter, $"Player{playerIdx + 1}", myConns.ToArray(), settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning));
+                    zones.Add(BuildSpawnZone(letter, $"Player{playerIdx + 1}", myConns.ToArray(), settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.PlayerStartsWithCastles, settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning));
                 else
                     zones.Add(BuildNeutralZone(neutralByLetter[letter], myConns.ToArray(), settings.ZoneCfg.Advanced.NeutralZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning, letter == holdCityNeutralLetter));
             }
@@ -2227,7 +2226,7 @@ namespace Olden_Era___Template_Editor.Services
             {
                 var spokeConns = spokeConnsByPlayer[playerLetters[i]];
 
-                zones.Add(BuildSpawnZone(playerLetters[i], $"Player{i + 1}", spokeConns.ToArray(), settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning));
+                zones.Add(BuildSpawnZone(playerLetters[i], $"Player{i + 1}", spokeConns.ToArray(), settings.ZoneCfg.PlayerZoneCastles, settings.MatchPlayerCastleFactions, settings.PlayerStartsWithCastles, settings.ZoneCfg.Advanced.PlayerZoneSize, settings.SpawnRemoteFootholds, settings.GenerateRoads, tuning));
 
                 // Player → neutral Direct connections.
                 foreach (var connName in spokeConns)
@@ -2646,7 +2645,7 @@ namespace Olden_Era___Template_Editor.Services
 
         // ── Spawn zone ───────────────────────────────────────────────────────────
 
-        private static Zone BuildSpawnZone(string letter, string player, string[] ringConns, int castleCount, bool matchCastleFactions, double zoneSize, bool spawnFootholds, bool generateRoads, GenerationTuning tuning)
+        private static Zone BuildSpawnZone(string letter, string player, string[] ringConns, int castleCount, bool matchCastleFactions, bool playerStartsWithCastles, double zoneSize, bool spawnFootholds, bool generateRoads, GenerationTuning tuning)
         {
             // Index 0 = Spawn (player town), indices 1..castleCount-1 = extra cities.
             var mainObjects = new List<MainObject>
@@ -2670,11 +2669,13 @@ namespace Olden_Era___Template_Editor.Services
                 mainObjects.Add(new MainObject
                 {
                     Type = "City",
+                    Owner = playerStartsWithCastles ? player : null,
                     Faction = matchCastleFactions
                         ? new TypedSelector { Type = "Match", Args = ["0"] }
                         : new TypedSelector { Type = "Random", Args = [] },
-                    GuardChance = 1,
+                    GuardChance = playerStartsWithCastles ? 1 : 1,
                     GuardValue = ScaleNeutralGuardValue(2500, tuning),
+                    RemoveGuardIfHasOwner = playerStartsWithCastles ? true : null,
                     GuardWeeklyIncrement = 0.10,
                     BuildingsConstructionSid = "poor_buildings_construction",
                     Placement = "Uniform",

@@ -75,6 +75,7 @@ namespace Olden_Era___Template_Editor.Models
         public bool SpawnRemoteFootholds { get; set; } = true;
         public bool GenerateRoads { get; set; } = true;
         public bool MatchPlayerCastleFactions { get; set; } = false;
+        public bool PlayerStartsWithCastles { get; set; } = false;
         public int MinNeutralZonesBetweenPlayers { get; set; } = 0;
         public MapTopology Topology { get; set; } = MapTopology.Balanced;
         public ZoneConfiguration ZoneCfg { get; set; } = new ZoneConfiguration();

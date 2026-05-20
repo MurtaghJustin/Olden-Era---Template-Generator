@@ -1265,7 +1265,10 @@ namespace Olden_Era___Template_Editor
             bool hasExtraCastles = (int)SldPlayerCastles.Value > 1;
             PnlPlayerCastleFactionOption.Visibility = hasExtraCastles ? Visibility.Visible : Visibility.Collapsed;
             if (!hasExtraCastles)
+            {
                 ChkMatchPlayerCastleFactions.IsChecked = false;
+                ChkPlayerStartsWithCastles.IsChecked = false;
+            }
         }
 
         private void UpdateIsolateDescVisibility()
@@ -1633,7 +1636,8 @@ namespace Olden_Era___Template_Editor
             NeutralMediumCastleCount = (int)SldNeutralMediumCastle.Value,
             NeutralHighNoCastleCount = (int)SldNeutralHighNoCastle.Value,
             NeutralHighCastleCount = (int)SldNeutralHighCastle.Value,
-            MatchPlayerCastleFactions = ChkMatchPlayerCastleFactions.IsChecked == true,
+            MatchPlayerCastleFactions   = ChkMatchPlayerCastleFactions.IsChecked == true,
+            PlayerStartsWithCastles     = ChkPlayerStartsWithCastles.IsChecked == true,
             MinNeutralZonesBetweenPlayers = (int)SldMinNeutralBetweenPlayers.Value,
             ExperimentalMapSizes  = ChkExperimentalMapSizes.IsChecked == true,
             PlayerZoneSize        = _advancedZoneSettings ? SldPlayerZoneSize.Value : 1.0,
@@ -1725,6 +1729,7 @@ namespace Olden_Era___Template_Editor
             SldNeutralHighNoCastle.Value   = legacyHighNoCastle;
             SldNeutralHighCastle.Value     = legacyHighCastle;
             ChkMatchPlayerCastleFactions.IsChecked = s.MatchPlayerCastleFactions;
+            ChkPlayerStartsWithCastles.IsChecked   = s.PlayerStartsWithCastles;
             SldMinNeutralBetweenPlayers.Value = s.MinNeutralZonesBetweenPlayers;
             SldPlayerZoneSize.Value = Math.Clamp(s.PlayerZoneSize, 0.1, 2.0);
             SldNeutralZoneSize.Value = Math.Clamp(s.NeutralZoneSize, 0.1, 2.0);
@@ -2009,6 +2014,7 @@ namespace Olden_Era___Template_Editor
             // Neutral zones between players can be influenced by advanced zone settings, but is functionally independent.
             MinNeutralZonesBetweenPlayers = _advancedZoneSettings ? (int)SldMinNeutralBetweenPlayers.Value : 0,
             MatchPlayerCastleFactions = ChkMatchPlayerCastleFactions.IsChecked == true,
+            PlayerStartsWithCastles   = ChkPlayerStartsWithCastles.IsChecked == true,
             NoDirectPlayerConnections = ChkNoDirectPlayerConn.IsChecked == true,
             RandomPortals = ChkRandomPortals.IsChecked == true,
             MaxPortalConnections = (int)SldMaxPortals.Value,

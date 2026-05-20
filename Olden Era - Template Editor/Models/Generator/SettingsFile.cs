@@ -22,7 +22,8 @@ namespace Olden_Era___Template_Editor.Models
         [JsonPropertyName("neutralMediumCastle")]   public int NeutralMediumCastleCount   { get; set; } = 0;
         [JsonPropertyName("neutralHighNoCastle")]   public int NeutralHighNoCastleCount   { get; set; } = 0;
         [JsonPropertyName("neutralHighCastle")]     public int NeutralHighCastleCount     { get; set; } = 0;
-        [JsonPropertyName("matchPlayerCastleFactions")] public bool MatchPlayerCastleFactions { get; set; } = false;
+        [JsonPropertyName("matchPlayerCastleFactions")] public bool MatchPlayerCastleFactions    { get; set; } = false;
+        [JsonPropertyName("playerStartsWithCastles")]  public bool PlayerStartsWithCastles       { get; set; } = false;
         [JsonPropertyName("minNeutralZonesBetweenPlayers")] public int MinNeutralZonesBetweenPlayers { get; set; } = 0;
         [JsonPropertyName("experimentalBalancedZonePlacement")] [System.Obsolete] public bool ExperimentalBalancedZonePlacement { get; set; } = false;
         [JsonPropertyName("experimentalMapSizes")] public bool ExperimentalMapSizes { get; set; } = false;
