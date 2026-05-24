@@ -141,15 +141,28 @@ namespace Olden_Era___Template_Editor
         private void InitializeDefaultPlayerZoneContents()
         {
             // ── Basic mines — guarded, anchored near the player castle (every template). ──
-            _playerZoneMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineWood, nearCastle: true, roadDistance: "Near"));
-            _playerZoneMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineOre, nearCastle: true, roadDistance: "Near"));
+            _playerZoneMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineWood, 
+                new List<ContentRule> {
+                    ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToTown, DistancePresets.Near),
+                    ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToRoad, DistancePresets.Near)
+                }));
+            _playerZoneMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineOre, 
+                new List<ContentRule> {
+                    ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToTown, DistancePresets.Near),
+                    ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToRoad, DistancePresets.Near)
+                }));
             // ── Gold mine (Exodus/Staircase/Yin Yang pattern). ──
-            _playerZoneMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineGold, roadDistance: "Near"));
+            _playerZoneMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineGold, 
+                ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToRoad, DistancePresets.Near)));
             // ── Rare mines spread along roads (Exodus/Staircase/Yin Yang pattern). ──
-            _playerZoneMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineCrystals, roadDistance: "Next To"));
-            _playerZoneMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineMercury, roadDistance: "Next To"));
-            _playerZoneMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineGemstones, roadDistance: "Next To"));
-            _playerZoneMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.AlchemyLab, roadDistance: "Next To"));
+            _playerZoneMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineCrystals,
+                ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToRoad, DistancePresets.NextTo)));
+            _playerZoneMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineMercury, 
+                ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToRoad, DistancePresets.NextTo)));
+            _playerZoneMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineGemstones, 
+                ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToRoad, DistancePresets.NextTo)));
+            _playerZoneMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.AlchemyLab, 
+                ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToRoad, DistancePresets.NextTo)));
             // ── Loot — epic items + army pandora (Exodus/Blitz pattern). ──
             _playerZoneMandatoryContent.treasures.Add(CreateZoneContentItem(ContentIds.PandoraBox));
             _playerZoneMandatoryContent.treasures.Add(CreateZoneContentItem(ContentIds.RandomItemEpic));
@@ -165,8 +178,10 @@ namespace Olden_Era___Template_Editor
 
             // ── Utility buildings (Blitz/Kerberos/Exodus pattern). ──
             _playerZoneMandatoryContent.utilityStructures.Add(CreateZoneContentItem(ContentIds.Watchtower));
-            _playerZoneMandatoryContent.utilityStructures.Add(CreateZoneContentItem(ContentIds.Market, roadDistance: "Near"));
-            _playerZoneMandatoryContent.utilityStructures.Add(CreateZoneContentItem(ContentIds.ManaWell, roadDistance: "Near"));
+            _playerZoneMandatoryContent.utilityStructures.Add(CreateZoneContentItem(ContentIds.Market, 
+                ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToRoad, DistancePresets.Near)));
+            _playerZoneMandatoryContent.utilityStructures.Add(CreateZoneContentItem(ContentIds.ManaWell, 
+                ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToRoad, DistancePresets.Near)));
             
             // ── Hero training — tier-2 stat building (fort/university/orb_observatory) ──
             //    + uncommon hero bank (university/wise_owl/tree_of_knowledge) (Blitz/Exodus pattern).
@@ -200,11 +215,16 @@ namespace Olden_Era___Template_Editor
         private void InitializeDefaultMediumNeutralContents()
         {
             // Mines — full rare set + gold + alchemy lab
-            _mediumNeutralMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineCrystals, roadDistance: "Next To"));
-            _mediumNeutralMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineMercury, roadDistance: "Next To"));
-            _mediumNeutralMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineGemstones, roadDistance: "Next To"));
-            _mediumNeutralMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.AlchemyLab, roadDistance: "Next To"));
-            _mediumNeutralMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineGold, roadDistance: "Near"));
+            _mediumNeutralMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineCrystals, 
+                contentRule: ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToRoad, DistancePresets.NextTo)));
+            _mediumNeutralMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineMercury, 
+                contentRule: ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToRoad, DistancePresets.NextTo)));
+            _mediumNeutralMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineGemstones, 
+                contentRule: ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToRoad, DistancePresets.NextTo)));
+            _mediumNeutralMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.AlchemyLab, 
+                contentRule: ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToRoad, DistancePresets.NextTo)));
+            _mediumNeutralMandatoryContent.mines.Add(CreateZoneContentItem(ContentIds.MineGold, 
+                contentRule: ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleDistanceToRoad, DistancePresets.Near)));
             // Utility — guarded watchtower + vision building
             _mediumNeutralMandatoryContent.utilityStructures.Add(CreateZoneContentItem(ContentIds.Watchtower));
             _mediumNeutralMandatoryContent.utilityStructures.Add(CreateZoneContentItem(IncludeListIds.VisionBuildingsTier1));
@@ -1360,6 +1380,19 @@ namespace Olden_Era___Template_Editor
                 MarkDirty();
         }
 
+        private void BtnManageZoneContentRules_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.DataContext is not ZoneContentItemUI item || item.SidMapping == null)
+                return;
+
+            var window = new ManageZoneContentRulesWindow(item.SidMapping, item.Rules)
+            {
+                Owner = this
+            };
+
+            window.ShowDialog();
+        }
+
         private void BtnResetPlayerZoneContent_Click(object sender, RoutedEventArgs e)
         {
             if (!IsInitialized) return;
@@ -1554,7 +1587,13 @@ namespace Olden_Era___Template_Editor
             AddZoneContentItemFromName(_hubZoneMandatoryContent.heroImprovementStructures, name);
         }
 
-        private static ZoneContentItemUI CreateZoneContentItem(SidMapping preset, int count = 1, bool isGuarded = true, bool nearCastle = false, string roadDistance = "Any")
+        
+        private static ZoneContentItemUI CreateZoneContentItem(SidMapping preset, ContentRule contentRule, int count = 1)
+        {
+            return CreateZoneContentItem(preset, new List<ContentRule> { contentRule }, count);
+        }
+
+        private static ZoneContentItemUI CreateZoneContentItem(SidMapping preset, List<ContentRule>? contentRules = null, int count = 1)
         {
             bool isGroup = false;
             if(preset.Sid.ToLower().Contains(IncludeListIds.Identifier))
@@ -1566,9 +1605,7 @@ namespace Olden_Era___Template_Editor
             {
                 SidMapping = preset,
                 Count = count,
-                IsGuarded = isGuarded,
-                NearCastle = nearCastle,
-                RoadDistance = roadDistance,
+                Rules = contentRules ?? new List<ContentRule>(),
                 IsGroup = isGroup
             };
         }
@@ -1597,12 +1634,11 @@ namespace Olden_Era___Template_Editor
                 SidMapping? sidMapping = GlobalContent.GetBySid(row.Sid);
                 if (sidMapping is null) continue;
 
+                List<ContentRule> rowRules = RestoreContentRulesFromRow(row);
                 var item = CreateZoneContentItem(
                     sidMapping,
-                    count:        row.Count,
-                    isGuarded:    row.IsGuarded,
-                    nearCastle:   row.NearCastle,
-                    roadDistance: row.RoadDistance);
+                    contentRules: rowRules,
+                    count:        row.Count);
 
                 if (row.IsMine)
                     target.mines.Add(item);
@@ -2006,7 +2042,7 @@ namespace Olden_Era___Template_Editor
                     GuardRandomization = _advancedZoneSettings ? SldGuardRandomization.Value / 100.0 : 0.05,
                 }
             },
-            PlayerZoneMandatoryContent = BuildPlayerZoneMandatoryContentFromUi(),
+            PlayerZoneMandatoryContent = BuildZoneMandatoryContentFromUi(_playerZoneMandatoryContent),
             LowNeutralMandatoryContent = BuildZoneMandatoryContentFromUi(_lowNeutralMandatoryContent),
             MediumNeutralMandatoryContent = BuildZoneMandatoryContentFromUi(_mediumNeutralMandatoryContent),
             HighNeutralMandatoryContent = BuildZoneMandatoryContentFromUi(_highNeutralMandatoryContent),
@@ -2043,125 +2079,43 @@ namespace Olden_Era___Template_Editor
             Bonuses            = [.. _bonuses],
         };
         
-        /* Creates list of ContentItems for the player zone mandatory content, according to the UI settings. */
-        private List<ContentItem> BuildPlayerZoneMandatoryContentFromUi()
+        /* Creates list of ContentItems for the zone mandatory content, according to the UI settings. */
+        private List<ContentItem> BuildZoneMandatoryContentFromUi(ZoneMandatoryContent content)
         {
             var result = new List<ContentItem>();
-
-            foreach (var item in _playerZoneMandatoryContent.AllItems)
+            foreach (var item in content.AllItems)
             {
                 /* Some initial sanity checks*/
                 if (item.Count <= 0) continue;
                 if(item.SidMapping == null) continue;
 
-                /* Parse the road distance from the UI setting. "Any" is handled separately. */
-                var distance = item.RoadDistance switch
-                {
-                    "Next To" => DistancePresets.NextTo,
-                    "Near" => DistancePresets.Near,
-                    "Far" => DistancePresets.Far,
-                    "Very Far" => DistancePresets.VeryFar,
-                    _ => DistancePresets.Medium
-                };
-
+                
                 for (int i = 0; i < item.Count; i++)
                 {
                     if (item.IsGroup)
                     {
                         var groupItem = new ContentItem
                         {
-                            IncludeLists = new List<string> { item.SidMapping.Sid },
-                            IsGuarded = item.IsGuarded
+                            IncludeLists = new List<string> { item.SidMapping.Sid }
                         };
-
-                        if (item.RoadDistance != "Any")
-                        {
-                            groupItem.Rules = new List<ContentPlacementRule>
-                            {
-                                RulePresets.RoadDistance(distance)
-                            };
-                        }
+                        ContentRuleManager.ApplyRulesToFinalContentItem(groupItem, item);
 
                         result.Add(groupItem);
                         continue;
                     }
-
-                    var builder = ContentItemBuilder
-                        .Create(item.SidMapping.Sid)
-                        .Guarded(item.IsGuarded);
-                    
-                    if(_playerZoneMandatoryContent.mines.Contains(item))
-                        builder.Mine();
-                    
-                    if (item.NearCastle)
-                        builder.AddRule(RulePresets.NearCastle());
-
-                    /* Do not include road placement for "Any" distance */
-                    if(item.RoadDistance != "Any")
-                        builder.RoadDistance(distance);
-                    
-                    result.Add(builder.Build());
-                }
-            }
-
-            return result;
-        }
-
-        /* Generic version of BuildPlayerZoneMandatoryContentFromUi for neutral/hub zone collections. */
-        private static List<ContentItem> BuildZoneMandatoryContentFromUi(ZoneMandatoryContent content)
-        {
-            var result = new List<ContentItem>();
-
-            foreach (var item in content.AllItems)
-            {
-                if (item.Count <= 0) continue;
-                if (item.SidMapping == null) continue;
-
-                var distance = item.RoadDistance switch
-                {
-                    "Next To" => DistancePresets.NextTo,
-                    "Near" => DistancePresets.Near,
-                    "Far" => DistancePresets.Far,
-                    "Very Far" => DistancePresets.VeryFar,
-                    _ => DistancePresets.Medium
-                };
-
-                for (int i = 0; i < item.Count; i++)
-                {
-                    if (item.IsGroup)
+                    else
                     {
-                        var groupItem = new ContentItem
-                        {
-                            IncludeLists = new List<string> { item.SidMapping.Sid },
-                            IsGuarded = item.IsGuarded
-                        };
-
-                        if (item.RoadDistance != "Any")
-                        {
-                            groupItem.Rules = new List<ContentPlacementRule>
-                            {
-                                RulePresets.RoadDistance(distance)
-                            };
-                        }
-
-                        result.Add(groupItem);
-                        continue;
+                        var builder = ContentItemBuilder
+                            .Create(item.SidMapping.Sid);
+                        
+                        if(content.mines.Contains(item))
+                            builder.Mine();
+                        
+                        ContentItem finalItem = builder.Build();
+                        ContentRuleManager.ApplyRulesToFinalContentItem(finalItem, item);
+                        
+                        result.Add(finalItem);
                     }
-
-                    var builder = ContentItemBuilder
-                        .Create(item.SidMapping.Sid)
-                        .Guarded(item.IsGuarded);
-
-                    if (content.mines.Contains(item))
-                        builder.Mine();
-
-                    if (item.NearCastle)
-                        builder.AddRule(RulePresets.NearCastle());
-
-                    if (item.RoadDistance != "Any")
-                        builder.RoadDistance(distance);
-
-                    result.Add(builder.Build());
                 }
             }
 
@@ -2184,13 +2138,119 @@ namespace Olden_Era___Template_Editor
                     Sid          = item.SidMapping.Sid,
                     Count        = item.Count,
                     IsGroup      = item.IsGroup,
-                    IsGuarded    = item.IsGuarded,
-                    NearCastle   = item.NearCastle,
-                    RoadDistance = item.RoadDistance ?? "Any",
+                    Rules        = BuildRuleRows(item.Rules),
                     IsMine       = content.mines.Contains(item),
                 });
             }
             return rows;
+        }
+
+        private static List<ContentRuleRowSave>? BuildRuleRows(List<ContentRule> rules)
+        {
+            if (rules.Count == 0)
+                return null;
+
+            var result = new List<ContentRuleRowSave>();
+            foreach (ContentRule rule in rules)
+            {
+                var row = new ContentRuleRowSave
+                {
+                    Type = (int)rule.Type
+                };
+
+                switch (rule.Value)
+                {
+                    case ContentRule.DistanceValue distance:
+                        row.DistanceName = distance.distanceVariation.Name;
+                        break;
+                    case ContentRule.GuardedValue guarded:
+                        row.IsGuarded = guarded.IsGuarded;
+                        break;
+                    case ContentRule.VariantValue variant:
+                        row.VariantId = variant.VariantId;
+                        break;
+                }
+
+                result.Add(row);
+            }
+
+            return result;
+        }
+
+        private static List<ContentRule> RestoreContentRulesFromRow(ZoneContentRowSave row)
+        {
+            var result = new List<ContentRule>();
+
+            // New format: explicit serialized rules.
+            if (row.Rules is { Count: > 0 })
+            {
+                foreach (ContentRuleRowSave savedRule in row.Rules)
+                {
+                    if (!System.Enum.IsDefined(typeof(ContentRuleType), savedRule.Type))
+                        continue;
+
+                    ContentRuleType type = (ContentRuleType)savedRule.Type;
+                    ContentRule preset = GetRulePreset(type);
+
+                    switch (type)
+                    {
+                        case ContentRuleType.DistanceToRoad:
+                        case ContentRuleType.DistanceToTown:
+                            if (string.IsNullOrWhiteSpace(savedRule.DistanceName))
+                                continue;
+                            result.Add(ContentRuleManager.CreateContentRuleFromPreset(
+                                preset,
+                                DistancePresets.GetDistanceVariationByName(savedRule.DistanceName)));
+                            break;
+                        case ContentRuleType.Guarded:
+                            if (!savedRule.IsGuarded.HasValue)
+                                continue;
+                            result.Add(ContentRuleManager.CreateContentRuleFromPreset(preset, savedRule.IsGuarded.Value));
+                            break;
+                        case ContentRuleType.Variant:
+                            if (!savedRule.VariantId.HasValue)
+                                continue;
+                            result.Add(ContentRuleManager.CreateContentRuleFromPreset(preset, savedRule.VariantId.Value));
+                            break;
+                    }
+                }
+
+                return result;
+            }
+
+            // Legacy fallback for old saves. (0.7.1 and earlier only)
+            if (row.IsGuarded)
+            {
+                result.Add(ContentRuleManager.CreateContentRuleFromPreset(ContentRuleManager._ruleGuarded, true));
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.RoadDistance) && !string.Equals(row.RoadDistance, "Any", StringComparison.OrdinalIgnoreCase))
+            {
+                result.Add(ContentRuleManager.CreateContentRuleFromPreset(
+                    ContentRuleManager._ruleDistanceToRoad,
+                    DistancePresets.GetDistanceVariationByName(row.RoadDistance)));
+            }
+
+            if (row.NearCastle)
+            {
+                result.Add(ContentRuleManager.CreateContentRuleFromPreset(
+                    ContentRuleManager._ruleDistanceToTown,
+                    DistancePresets.Near));
+            }
+
+            return result;
+        }
+
+        private static ContentRule GetRulePreset(ContentRuleType type)
+        {
+            return type switch
+            {
+                ContentRuleType.DistanceToRoad => ContentRuleManager._ruleDistanceToRoad,
+                ContentRuleType.DistanceToTown => ContentRuleManager._ruleDistanceToTown,
+                ContentRuleType.Guarded => ContentRuleManager._ruleGuarded,
+                ContentRuleType.Variant => ContentRuleManager._ruleVariant,
+                _ => ContentRuleManager._ruleDistanceToRoad,
+            };
         }
 
         /* Helper function for checking if a SID belongs to a content item group */

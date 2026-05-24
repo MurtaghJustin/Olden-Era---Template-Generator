@@ -151,6 +151,7 @@ public static class ZoneContentManager
                 new() { Sid = ContentIds.InsarasEye.Sid,          MaxCount = 2 },
                 new() { Sid = ContentIds.TearOfTruth.Sid,        MaxCount = 3 },
                 new() { Sid = ContentIds.TreeOfAbundance.Sid,    MaxCount = 2 },
+                new() { Sid = ContentIds.LearningStone.Sid,    MaxCount = 5 },
 
                 // ── Hire buildings ───────────────────────────────────────────────
                 new() { Sid = ContentIds.HuntsmansCamp.Sid,       MaxCount = 2 },

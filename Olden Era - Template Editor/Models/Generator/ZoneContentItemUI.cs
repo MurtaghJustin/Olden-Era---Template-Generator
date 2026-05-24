@@ -8,11 +8,10 @@ namespace Olden_Era___Template_Editor.Models
     {
         private SidMapping? _sidMapping;
         private int _count;
-        private bool _isGuarded;
-        private bool _nearCastle;
-        private string? _roadDistance;
         // Flag indicating if this is a single content item, or a group added via includeLists.
         private bool _isGroup;
+        // Abstract representation of "content rules" from the UI, to be converted to proper ContentItem fields during its construction.
+        public List<ContentRule> Rules { get; set; } = new List<ContentRule>();
 
         public SidMapping? SidMapping
         {
@@ -31,24 +30,6 @@ namespace Olden_Era___Template_Editor.Models
             /* Just a flag, no need to notify UI */
             set { _isGroup = value; }
         }
-
-        public bool IsGuarded
-        {
-            get => _isGuarded;
-            set { _isGuarded = value; OnPropertyChanged(); }
-        }
-
-        public string? RoadDistance
-        {
-            get => _roadDistance;
-            set { _roadDistance = value; OnPropertyChanged(); }
-        }
-        public bool NearCastle
-        {
-            get => _nearCastle;
-            set { _nearCastle = value; OnPropertyChanged(); }
-        }
-
         public event PropertyChangedEventHandler? PropertyChanged;
 
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
