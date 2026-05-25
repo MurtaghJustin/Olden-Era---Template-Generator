@@ -9,7 +9,7 @@ namespace OldenEraTemplateEditor.Services.ContentManagement
     public class RuleDistanceToTown : IContentRule
 {
     public const string RuleName = "Distance to town";
-    public const string RuleDescription = "Distance to the nearest town for the content item.";
+    public const string RuleDescription = "Distance to the nearest town from the content item.";
     public string Name => RuleName;
     public string Description => RuleDescription;
     /* Custom value type for distance to town rule. */
