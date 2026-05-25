@@ -2182,7 +2182,7 @@ namespace Olden_Era___Template_Editor
         {
             var result = new List<IContentRule>();
 
-            // New format: explicit serialized rules.
+            /* New format: explicit serialized rules. */
             if (row.Rules is { Count: > 0 })
             {
                 foreach (ContentRuleRowSave savedRule in row.Rules)
@@ -2197,10 +2197,15 @@ namespace Olden_Era___Template_Editor
                 return result;
             }
 
-            // Legacy fallback for old saves. (0.7.1 and earlier only)
+            /* Legacy fallback for old saves. (0.7.1 and earlier only) */
             if (row.IsGuarded)
             {
                 result.Add(new RuleGuarded(true));
+            }
+            else
+            {
+                /* People had to manually uncheck this, so create unguarded rule to perserve their intent */
+                result.Add(new RuleGuarded(false));
             }
             if (!string.IsNullOrWhiteSpace(row.RoadDistance) && !string.Equals(row.RoadDistance, "Any", StringComparison.OrdinalIgnoreCase))
             {
