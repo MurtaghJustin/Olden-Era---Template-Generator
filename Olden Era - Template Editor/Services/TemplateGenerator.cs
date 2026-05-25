@@ -1191,7 +1191,7 @@ namespace Olden_Era___Template_Editor.Services
                 size: settings.ZoneCfg.HubZoneSize,
                 castleCount: settings.ZoneCfg.HubZoneCastles,
                 generateRoads: settings.GenerateRoads,
-                hubContentGroupName: settings.HubZoneMandatoryContent.Count > 0 ? "mandatory_content_hub" : null);
+                hubContentGroupName: settings.ZoneContent.HubZoneMandatoryContent.Count > 0 ? "mandatory_content_hub" : null);
             hubZone.Name = hubName;
             zones.Add(hubZone);
 
@@ -2015,7 +2015,7 @@ namespace Olden_Era___Template_Editor.Services
 
             // Hub zone (neutral, configurable castles, high loot).
             var hubConns = outerLetters.Select(l => $"Hub-{l}").ToArray();
-            zones.Add(BuildHubZone(hubConns, tuning, hubIsHoldCity, settings.ZoneCfg.HubZoneSize, settings.ZoneCfg.HubZoneCastles, settings.GenerateRoads, settings.HubZoneMandatoryContent.Count > 0 ? "mandatory_content_hub" : null));
+            zones.Add(BuildHubZone(hubConns, tuning, hubIsHoldCity, settings.ZoneCfg.HubZoneSize, settings.ZoneCfg.HubZoneCastles, settings.GenerateRoads, settings.ZoneContent.HubZoneMandatoryContent.Count > 0 ? "mandatory_content_hub" : null));
 
             // Outer zones each connect only to the hub.
             for (int i = 0; i < outerLetters.Count; i++)
@@ -3211,11 +3211,11 @@ namespace Olden_Era___Template_Editor.Services
             foreach (var neutralZone in neutralZones)
                 groups.Add(BuildNeutralMandatoryContent(neutralZone.Letter, neutralZone.CastleCount, neutralZone.Quality, settings));
 
-            if (settings.HubZoneMandatoryContent.Count > 0)
+            if (settings.ZoneContent.HubZoneMandatoryContent.Count > 0)
             {
                 var hubContent = settings.ZoneCfg.HubZoneCastles == 0
-                    ? ZoneContentManager.StripNearCastleRules([.. settings.HubZoneMandatoryContent])
-                    : [.. settings.HubZoneMandatoryContent];
+                    ? ZoneContentManager.StripNearCastleRules([.. settings.ZoneContent.HubZoneMandatoryContent])
+                    : [.. settings.ZoneContent.HubZoneMandatoryContent];
                 groups.Add(new MandatoryContentGroup
                 {
                     Name = "mandatory_content_hub",
