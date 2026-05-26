@@ -45,24 +45,15 @@ namespace Olden_Era___Template_Editor.Models
         {
             get
             {
-                string guardedMarker = string.Empty;
-                RuleGuarded? guardedRule = Rules.OfType<RuleGuarded>().FirstOrDefault();
-                if (guardedRule is not null)
+                string markers = string.Empty;
+
+                foreach(var rule in Rules)
                 {
-                    guardedMarker = guardedRule.Value.isGuarded ? "G" : "!G";
+                    if (!string.IsNullOrEmpty(rule.Marker))
+                    {
+                        markers += rule.Marker + " ";
+                    }
                 }
-
-                bool hasRoadRule = Rules.OfType<RuleDistanceToRoad>().Any();
-                bool hasTownRule = Rules.OfType<RuleDistanceToTown>().Any();
-
-                var markers = new List<string>();
-                if (!string.IsNullOrEmpty(guardedMarker))
-                    markers.Add(guardedMarker);
-                if (hasRoadRule)
-                    markers.Add("R");
-                if (hasTownRule)
-                    markers.Add("T");
-
                 return string.Join(" ", markers);
             }
         }

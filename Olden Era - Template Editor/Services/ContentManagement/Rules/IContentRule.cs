@@ -24,6 +24,8 @@ public interface IContentRule
     public string Name { get; }
     /* Description of the rule to be displayed in the UI */
     public string Description { get; }
+    /* Marker for rule display in the zone configuration page - usually a single letter */
+    public string Marker { get; }
     /* Value of the rule, which can be of different types based on the rule type. */
     public abstract record RuleValue
     {

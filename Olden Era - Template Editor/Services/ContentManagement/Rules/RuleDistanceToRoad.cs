@@ -10,8 +10,10 @@ public class RuleDistanceToRoad : IContentRule
 {
     public const string RuleName = "Distance to road";
     public const string RuleDescription = "Distance to the nearest road from the content item.";
+    public const string RuleMarker = "R";
     public string Name => RuleName;
     public string Description => RuleDescription;
+    public string Marker => RuleMarker;
     /* Custom value type for distance to road rule. */
     public sealed record DistanceValue(DistanceVariation distanceVariation) : IContentRule.RuleValue
     {

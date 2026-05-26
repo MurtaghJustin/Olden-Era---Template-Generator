@@ -10,8 +10,10 @@ public class RuleGuarded : IContentRule
 {
     public const string RuleName = "Guarded";
     public const string RuleDescription = "Forces the content item to be guarded or unguarded, regardless of the default behavior.";
+    public const string RuleMarker = "G";
     public string Name => RuleName;
     public string Description => RuleDescription;
+    public string Marker => Value.isGuarded ? RuleMarker : "!" + RuleMarker;
     /* Custom value type for guarded rule. */
     public sealed record GuardedValue(bool isGuarded) : IContentRule.RuleValue
     {

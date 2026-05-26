@@ -10,8 +10,10 @@ public class RuleVariant : IContentRule
 {
     public const string RuleName = "Variant";
     public const string RuleDescription = "Forces the content item to spawn a specific variant.";
+    public const string RuleMarker = "";
     public string Name => RuleName;
     public string Description => RuleDescription;
+    public string Marker => RuleMarker;
     /* Custom value type for variant rule. */
     public sealed record VariantValue(VariantMapping variantMapping, int variantId) : IContentRule.RuleValue
     {
