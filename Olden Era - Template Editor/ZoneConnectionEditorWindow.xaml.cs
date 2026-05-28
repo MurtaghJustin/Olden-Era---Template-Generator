@@ -636,9 +636,10 @@ namespace Olden_Era___Template_Editor
             CmbAddType.SelectedIndex           = 0;
             TxtAddGuardValue.Text              = "";
             TxtAddGuardZone.Text               = "";
+            TxtAddGuardZone.Tag                = _pendingFromZone;   // dynamic placeholder
             TxtAddGuardMatchGroup.Text         = "";
             TxtAddGuardWeeklyIncrement.Text    = "";
-            ChkAddSimTurnSquad.IsChecked       = false;
+            ChkAddSimTurnSquad.IsChecked       = true;               // default on
             PnlAddConfirm.Visibility = Visibility.Visible;
             TxtAddName.Focus();
         }
@@ -654,19 +655,24 @@ namespace Olden_Era___Template_Editor
             string? addName = TxtAddName.Text.Trim();
             if (addName.Length == 0) addName = null;
 
+            // GuardZone: default to the From zone when left blank
             string? addGuardZone = TxtAddGuardZone.Text.Trim();
-            if (addGuardZone.Length == 0) addGuardZone = null;
+            if (addGuardZone.Length == 0) addGuardZone = _pendingFromZone;
 
             string? addGuardMatchGroup = TxtAddGuardMatchGroup.Text.Trim();
             if (addGuardMatchGroup.Length == 0) addGuardMatchGroup = null;
 
+            // WeeklyIncrement: default to 0.15 when left blank
+            string wis = TxtAddGuardWeeklyIncrement.Text.Trim();
+            if (wis.Length == 0) wis = "0.15";
             double? addWeeklyIncrement = null;
-            if (double.TryParse(TxtAddGuardWeeklyIncrement.Text.Trim(),
+            if (double.TryParse(wis,
                     System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture,
                     out double wi))
                 addWeeklyIncrement = wi;
 
+            // SimTurnSquad: checkbox defaults to checked; null when false to avoid serialising false
             bool addSimTurnSquad = ChkAddSimTurnSquad.IsChecked == true;
 
             var newConn = new Connection

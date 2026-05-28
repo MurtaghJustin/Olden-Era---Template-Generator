@@ -105,13 +105,17 @@
                             <StackPanel Orientation="Horizontal">
                                 <Label Content="Guard Zone:" Padding="0,0,4,0" VerticalAlignment="Center" FontSize="12"/>
                                 <TextBox x:Name="TxtAddGuardZone" Width="90" Margin="0,0,8,0" TabIndex="25"
-                                         ToolTip="Zone that provides the guard army (leave blank for default)"/>
+                                         Style="{StaticResource HintTextBox}"
+                                         ToolTip="Zone that provides the guard army (defaults to the From zone)"/>
                                 <Label Content="Guard Match Group:" Padding="0,0,4,0" VerticalAlignment="Center" FontSize="12"/>
-                                <TextBox x:Name="TxtAddGuardMatchGroup" Width="70" Margin="0,0,8,0" TabIndex="26"
+                                <TextBox x:Name="TxtAddGuardMatchGroup" Width="130" Margin="0,0,8,0" TabIndex="26"
+                                         Style="{StaticResource HintTextBox}"
+                                         Tag="e.g. tourney_guard_A_B"
                                          ToolTip="Match group key for synchronising guard levels across connections"/>
                                 <Label Content="Weekly Increment:" Padding="0,0,4,0" VerticalAlignment="Center" FontSize="12"/>
                                 <TextBox x:Name="TxtAddGuardWeeklyIncrement" Width="60" Margin="0,0,8,0" TabIndex="27"
-                                         ToolTip="Guard value added each week (decimal, e.g. 0.5)"/>
+                                         Style="{StaticResource HintTextBox}" Tag="0.15"
+                                         ToolTip="Guard value added each week (decimal). Defaults to 0.15."/>
                                 <CheckBox x:Name="ChkAddSimTurnSquad" Content="Sim Turn Squad" TabIndex="28"
                                           VerticalAlignment="Center" Margin="0,0,0,0"
                                           ToolTip="Simulate an extra squad each turn at this connection"/>
