@@ -22,13 +22,14 @@ namespace Olden_Era___Template_Editor
 
         // ── Selection state ──────────────────────────────────────────────────
         private Connection? _selectedConnection;
-        private Line? _selectedVisibleLine;
+        private Shape? _selectedVisibleLine;
 
         // ── Add-connection mode ──────────────────────────────────────────────
         private bool _addMode;
         private string? _pendingFromZone;
-        private string? _pendingToZone;
         private Ellipse? _pendingFromEllipse;
+        private Line? _rubberBandLine;
+        private bool _isDragging;
 
         // ── Event-suppression flag ───────────────────────────────────────────
         private bool _suppressPropertyEvents;
@@ -97,25 +98,9 @@ namespace Olden_Era___Template_Editor
 
             InitializeComponent();
 
-            // Add-connection type combobox
-            CmbAddType.Items.Add("Direct");
-            CmbAddType.Items.Add("Portal");
-            CmbAddType.SelectedIndex = 0;
-
-            // Add-connection guard-strength combobox (Custom added dynamically when Advanced is on)
-            foreach (string label in StrengthLabels)
-                CmbAddGuardStrength.Items.Add(label);
-            CmbAddGuardStrength.SelectedIndex = 2; // default: Medium
-
-            // Add-connection weekly-growth combobox
-            foreach (string label in WeeklyIncrementLabels)
-                CmbAddWeeklyIncrement.Items.Add(label);
-            CmbAddWeeklyIncrement.SelectedIndex = 2; // default: Standard (15%)
-
-            // Edit connection-type combobox
+            // Edit connection-type combobox (Proximity is not user-creatable)
             CmbConnectionType.Items.Add("Direct");
             CmbConnectionType.Items.Add("Portal");
-            CmbConnectionType.Items.Add("Proximity");
             CmbConnectionType.SelectedIndex = 0;
 
             // Guard-zone combobox (property panel): populated per-connection in PopulatePropertyPanel
@@ -181,72 +166,123 @@ namespace Olden_Era___Template_Editor
 
         private void RenderEdges()
         {
+            // Group connections by unordered zone pair so parallel edges can be curved apart.
+            const double BulgeGap = 18.0;   // perpendicular bulge step between parallel edges
+
+            var pairGroups = new Dictionary<(string, string), List<Connection>>(
+                EqualityComparer<(string, string)>.Default);
+
             foreach (var conn in _connections)
             {
-                if (!_nodePositions.TryGetValue(conn.From, out var fromPos)) continue;
-                if (!_nodePositions.TryGetValue(conn.To,   out var toPos))   continue;
+                if (!_nodePositions.ContainsKey(conn.From) || !_nodePositions.ContainsKey(conn.To))
+                    continue;
+                var key = string.Compare(conn.From, conn.To, StringComparison.Ordinal) <= 0
+                    ? (conn.From, conn.To) : (conn.To, conn.From);
+                if (!pairGroups.TryGetValue(key, out var list))
+                    pairGroups[key] = list = [];
+                list.Add(conn);
+            }
+
+            // Build per-connection geometry (quadratic Bézier; control point at midpoint for N=1 → straight)
+            var connGeometry = new Dictionary<Connection, (PathGeometry geo, Point labelPt)>(
+                ReferenceEqualityComparer.Instance);
+
+            foreach (var group in pairGroups.Values)
+            {
+                int n = group.Count;
+                for (int i = 0; i < n; i++)
+                {
+                    var conn    = group[i];
+                    var fromPos = _nodePositions[conn.From];
+                    var toPos   = _nodePositions[conn.To];
+
+                    double dx  = toPos.X - fromPos.X;
+                    double dy  = toPos.Y - fromPos.Y;
+                    double len = Math.Sqrt(dx * dx + dy * dy);
+
+                    // Perpendicular unit normal (rotate 90°)
+                    double nx = len > 0 ? -dy / len : 0;
+                    double ny = len > 0 ?  dx / len : 0;
+
+                    // bulge = signed perpendicular displacement at the curve's midpoint
+                    double bulge = (i - (n - 1) / 2.0) * BulgeGap;
+
+                    var mid     = new Point((fromPos.X + toPos.X) / 2, (fromPos.Y + toPos.Y) / 2);
+                    // Control point is 2× the desired midpoint displacement (quadratic Bézier property)
+                    var ctrl    = new Point(mid.X + 2 * bulge * nx, mid.Y + 2 * bulge * ny);
+                    // Actual curve midpoint at t=0.5
+                    var labelPt = new Point(mid.X + bulge * nx, mid.Y + bulge * ny);
+
+                    var figure = new PathFigure { StartPoint = fromPos, IsClosed = false };
+                    figure.Segments.Add(new QuadraticBezierSegment(ctrl, toPos, true));
+                    var geo = new PathGeometry([figure]);
+                    geo.Freeze();
+
+                    connGeometry[conn] = (geo, labelPt);
+                }
+            }
+
+            // Draw each connection
+            foreach (var conn in _connections)
+            {
+                if (!connGeometry.TryGetValue(conn, out var entry)) continue;
+                var (geo, labelPt) = entry;
 
                 bool isPortal   = string.Equals(conn.ConnectionType, "Portal", StringComparison.Ordinal);
                 bool isSelected = ReferenceEquals(conn, _selectedConnection);
 
-                var normalBrush  = isPortal ? BrushEdgePortal : BrushEdgeDirect;
-                var strokeBrush  = isSelected ? BrushEdgeSelected : normalBrush;
+                var normalBrush = isPortal ? BrushEdgePortal : BrushEdgeDirect;
+                var strokeBrush = isSelected ? BrushEdgeSelected : normalBrush;
 
-                // Visible line (2 px, not hit-testable)
-                var visibleLine = new Line
+                var visiblePath = new Path
                 {
-                    X1 = fromPos.X, Y1 = fromPos.Y,
-                    X2 = toPos.X,   Y2 = toPos.Y,
+                    Data = geo,
                     Stroke = strokeBrush,
                     StrokeThickness = 2,
-                    IsHitTestVisible = false
+                    IsHitTestVisible = false,
+                    Fill = Brushes.Transparent
                 };
                 if (conn.IsUserAdded)
-                    visibleLine.StrokeDashArray = [4.0, 3.0];
+                    visiblePath.StrokeDashArray = [4.0, 3.0];
 
-                // If this is the newly rendered line for the selected connection, update the reference.
                 if (isSelected)
-                    _selectedVisibleLine = visibleLine;
+                    _selectedVisibleLine = visiblePath;
 
-                // Transparent 12 px hit-area line for click detection
-                var hitLine = new Line
+                var hitPath = new Path
                 {
-                    X1 = fromPos.X, Y1 = fromPos.Y,
-                    X2 = toPos.X,   Y2 = toPos.Y,
+                    Data = geo,
                     Stroke = Brushes.Transparent,
                     StrokeThickness = 12,
+                    Fill = Brushes.Transparent,
                     Cursor = Cursors.Hand
                 };
 
-                var capturedConn    = conn;
-                var capturedVisible = visibleLine;
-                hitLine.MouseLeftButtonDown += (_, e) =>
+                var capturedConn = conn;
+                var capturedPath = visiblePath;
+                hitPath.MouseLeftButtonDown += (_, e) =>
                 {
-                    if (_addMode) return;   // edges are not selectable during add mode
+                    if (_addMode) return;
                     e.Handled = true;
-                    SelectEdge(capturedConn, capturedVisible);
+                    SelectEdge(capturedConn, capturedPath);
                 };
 
-                ZoneCanvas.Children.Add(hitLine);
-                ZoneCanvas.Children.Add(visibleLine);
+                ZoneCanvas.Children.Add(hitPath);
+                ZoneCanvas.Children.Add(visiblePath);
 
-                // Guard-value label at edge midpoint
-                string guardText = conn.GuardValue.HasValue ? conn.GuardValue.Value.ToString() : "";
-                if (guardText.Length > 0)
+                // Guard-value label at the curve's midpoint
+                if (conn.GuardValue.HasValue)
                 {
                     var guardLabel = new TextBlock
                     {
-                        Text = guardText,
+                        Text = conn.GuardValue.Value.ToString(),
                         FontSize = 9,
                         Foreground = Brushes.LightYellow,
                         IsHitTestVisible = false
                     };
                     ZoneCanvas.Children.Add(guardLabel);
                     guardLabel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                    double mx = (fromPos.X + toPos.X) / 2.0;
-                    double my = (fromPos.Y + toPos.Y) / 2.0;
-                    Canvas.SetLeft(guardLabel, mx - guardLabel.DesiredSize.Width  / 2.0);
-                    Canvas.SetTop( guardLabel, my - guardLabel.DesiredSize.Height / 2.0);
+                    Canvas.SetLeft(guardLabel, labelPt.X - guardLabel.DesiredSize.Width  / 2.0);
+                    Canvas.SetTop( guardLabel, labelPt.Y - guardLabel.DesiredSize.Height / 2.0);
                 }
             }
 
@@ -426,7 +462,7 @@ namespace Olden_Era___Template_Editor
 
         // ── Edge selection ────────────────────────────────────────────────────
 
-        private void SelectEdge(Connection conn, Line visibleLine)
+        private void SelectEdge(Connection conn, Shape visibleLine)
         {
             // Restore the previously selected edge to its normal colour
             if (_selectedConnection is not null && _selectedVisibleLine is not null)
@@ -743,7 +779,6 @@ namespace Olden_Era___Template_Editor
         {
             _addMode         = true;
             _pendingFromZone = null;
-            _pendingToZone   = null;
             _pendingFromEllipse = null;
             ZoneCanvas.Cursor = Cursors.Cross;
             BtnAddMode.Content = "✕  Cancel Add Mode";
@@ -763,13 +798,18 @@ namespace Olden_Era___Template_Editor
 
         private void ExitAddMode()
         {
-            _addMode         = false;
-            _pendingFromZone = null;
-            _pendingToZone   = null;
+            _addMode            = false;
+            _pendingFromZone    = null;
             _pendingFromEllipse = null;
+            _isDragging         = false;
+            if (_rubberBandLine is not null)
+            {
+                ZoneCanvas.Children.Remove(_rubberBandLine);
+                _rubberBandLine = null;
+            }
+            ZoneCanvas.ReleaseMouseCapture();
             ZoneCanvas.Cursor  = Cursors.Arrow;
             BtnAddMode.Content = "+ Add Connection";
-            PnlAddConfirm.Visibility = Visibility.Collapsed;
 
             Refresh();
         }
@@ -779,115 +819,103 @@ namespace Olden_Era___Template_Editor
             if (!_addMode) return;
             e.Handled = true;
 
-            if (_pendingFromZone is null)
+            _pendingFromZone = zoneName;
+            _isDragging      = true;
+
+            // Highlight source node and draw initial rubber-band
+            Refresh();   // picks up _pendingFromZone to colour the node
+
+            var fromPos = _nodePositions.GetValueOrDefault(zoneName);
+            _rubberBandLine = new Line
             {
-                // First click: set the "from" zone and highlight it
-                _pendingFromZone    = zoneName;
-                _pendingFromEllipse = sender as Ellipse;
-                if (_pendingFromEllipse is not null)
-                    _pendingFromEllipse.Stroke = BrushEdgeSelected;
-            }
-            else if (!string.Equals(_pendingFromZone, zoneName, StringComparison.Ordinal))
-            {
-                // Second click on a different zone: show the confirmation strip
-                _pendingToZone = zoneName;
-                ShowAddConfirmation();
-            }
-            // Clicking the same zone twice is ignored
+                X1 = fromPos.X, Y1 = fromPos.Y,
+                X2 = fromPos.X, Y2 = fromPos.Y,
+                Stroke = BrushEdgeSelected,
+                StrokeThickness = 1.5,
+                StrokeDashArray = [4.0, 3.0],
+                IsHitTestVisible = false
+            };
+            ZoneCanvas.Children.Add(_rubberBandLine);
+            ZoneCanvas.CaptureMouse();
         }
 
-        private void ShowAddConfirmation()
+        private void Canvas_MouseMove(object sender, MouseEventArgs e)
         {
-            TxtAddFromTo.Text = $"New connection:  {_pendingFromZone}  →  {_pendingToZone}";
-            CmbAddType.SelectedIndex = 0;
-
-            // Populate guard-zone dropdown with the two connection endpoints
-            CmbAddGuardZone.Items.Clear();
-            if (_pendingFromZone is not null) CmbAddGuardZone.Items.Add(_pendingFromZone);
-            if (_pendingToZone   is not null) CmbAddGuardZone.Items.Add(_pendingToZone);
-            CmbAddGuardZone.SelectedIndex = 0;
-
-            // Infer tier from the higher-value endpoint and update the label
-            ZoneTier tier = HigherTierOf(_pendingFromZone, _pendingToZone);
-            TxtAddTierLabel.Text = $"({tier})";
-
-            // Strength: default to Medium (index 2); keep Advanced state unchanged
-            CmbAddGuardStrength.SelectedIndex = 2;
-            TxtAddGuardValueCustom.Text        = "";
-            TxtAddGuardValueCustom.Visibility  = Visibility.Collapsed;
-
-            // Weekly growth: default to Standard (15%)
-            CmbAddWeeklyIncrement.SelectedIndex = 2;
-
-            PnlAddConfirm.Visibility = Visibility.Visible;
-            CmbAddGuardStrength.Focus();
+            if (!_isDragging || _rubberBandLine is null) return;
+            var pos = e.GetPosition(ZoneCanvas);
+            _rubberBandLine.X2 = pos.X;
+            _rubberBandLine.Y2 = pos.Y;
         }
 
-        private void CmbAddGuardStrength_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void Canvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            if (TxtAddGuardValueCustom is null) return;
-            bool isCustom = CmbAddGuardStrength.SelectedItem as string == "Custom...";
-            TxtAddGuardValueCustom.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
-        }
+            if (!_isDragging) return;
 
+            var pos = e.GetPosition(ZoneCanvas);
+            string? targetZone = HitTestZone(pos);
 
-        private void BtnAddConfirm_Click(object sender, RoutedEventArgs e)
-        {
-            if (_pendingFromZone is null || _pendingToZone is null) return;
-
-            // Guard value from preset or custom entry
-            int guardValue;
-            if (CmbAddGuardStrength.SelectedItem as string == "Custom...")
+            if (targetZone is not null
+                && !string.Equals(targetZone, _pendingFromZone, StringComparison.Ordinal))
             {
-                guardValue = int.TryParse(TxtAddGuardValueCustom.Text.Trim(), out int cv) ? cv : 15000;
+                AddConnectionWithDefaults(_pendingFromZone!, targetZone);
             }
             else
             {
-                ZoneTier tier = HigherTierOf(_pendingFromZone, _pendingToZone);
-                int strengthIdx = CmbAddGuardStrength.SelectedIndex >= 0
-                    ? Math.Min(CmbAddGuardStrength.SelectedIndex, StrengthLabels.Length - 1)
-                    : 2;
-                guardValue = GuardPresets[(int)tier, strengthIdx];
+                // Drag landed on the same zone or empty space — clean up and stay in add mode
+                _isDragging = false;
+                if (_rubberBandLine is not null)
+                {
+                    ZoneCanvas.Children.Remove(_rubberBandLine);
+                    _rubberBandLine = null;
+                }
+                ZoneCanvas.ReleaseMouseCapture();
+                _pendingFromZone = null;
+                Refresh();
             }
-
-            // Guard zone from dropdown
-            string? addGuardZone = CmbAddGuardZone.SelectedItem as string;
-            if (string.IsNullOrEmpty(addGuardZone)) addGuardZone = _pendingFromZone;
-
-            // Guard match group: auto-generate
-            string addGuardMatchGroup =
-                $"rnd_guard_{ZoneLetterFromName(_pendingFromZone)}_{ZoneLetterFromName(_pendingToZone)}";
-
-            // Weekly increment from dropdown
-            int wiIdx = CmbAddWeeklyIncrement.SelectedIndex;
-            double addWeeklyIncrement = wiIdx >= 0 && wiIdx < WeeklyIncrementValues.Length
-                ? WeeklyIncrementValues[wiIdx]
-                : 0.15;
-
-            var newConn = new Connection
-            {
-                From                 = _pendingFromZone,
-                To                   = _pendingToZone,
-                ConnectionType       = CmbAddType.SelectedItem as string ?? "Direct",
-                GuardValue           = guardValue,
-                GuardZone            = addGuardZone,
-                GuardMatchGroup      = addGuardMatchGroup,
-                GuardWeeklyIncrement = addWeeklyIncrement,
-                IsUserAdded          = true
-            };
-
-            _connections.Add(newConn);
-            ConnectionsWereModified = true;
-            ExitAddMode();
         }
 
-        private void BtnAddCancel_Click(object sender, RoutedEventArgs e) => ExitAddMode();
+        private string? HitTestZone(Point pos)
+        {
+            foreach (var (name, center) in _nodePositions)
+            {
+                double dx = pos.X - center.X;
+                double dy = pos.Y - center.Y;
+                if (Math.Sqrt(dx * dx + dy * dy) <= NodeRadius)
+                    return name;
+            }
+            return null;
+        }
+
+        private void AddConnectionWithDefaults(string from, string to)
+        {
+            ZoneTier tier = HigherTierOf(from, to);
+            var newConn = new Connection
+            {
+                From                 = from,
+                To                   = to,
+                ConnectionType       = "Direct",
+                GuardValue           = GuardPresets[(int)tier, 2],     // Medium
+                GuardZone            = from,
+                GuardMatchGroup      = $"rnd_guard_{ZoneLetterFromName(from)}_{ZoneLetterFromName(to)}",
+                GuardWeeklyIncrement = WeeklyIncrementValues[2],       // Standard 15%
+                IsUserAdded          = true
+            };
+            _connections.Add(newConn);
+            ConnectionsWereModified = true;
+
+            // Pre-select so Refresh() in ExitAddMode sets _selectedVisibleLine
+            _selectedConnection = newConn;
+            ExitAddMode();
+
+            // Show property panel for the new connection
+            PnlProperties.Visibility = Visibility.Visible;
+            PopulatePropertyPanel(newConn);
+        }
 
         private void Canvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            // Fires only when no child element handled the event (i.e. empty canvas background).
-            if (!_addMode) return;
-            if (PnlAddConfirm.Visibility == Visibility.Visible) return;
+            // Fires only when clicking the canvas background (no child handled it).
+            if (!_addMode || _isDragging) return;
             ExitAddMode();
         }
 

@@ -56,7 +56,7 @@
                     <Button x:Name="BtnAddMode" Content="+ Add Connection"
                             Margin="0,0,8,0" Click="BtnAddMode_Click"
                             Style="{StaticResource ToolbarButton}" TabIndex="0"
-                            ToolTip="Enter add-connection mode: click a source zone, then a destination zone"/>
+                            ToolTip="Drag from one zone to another to create a new Direct connection"/>
                     <Button Content="↺  Reset to Generated"
                             Click="BtnReset_Click"
                             Style="{StaticResource ToolbarButton}" TabIndex="1"
@@ -76,49 +76,9 @@
                     <Canvas x:Name="ZoneCanvas"
                             Background="#1C1610"
                             MouseLeftButtonDown="Canvas_MouseLeftButtonDown"
+                            MouseMove="Canvas_MouseMove"
+                            MouseLeftButtonUp="Canvas_MouseLeftButtonUp"
                             ClipToBounds="True"/>
-
-                    <!-- Add-connection confirmation panel (overlaid at top of canvas) -->
-                    <Border x:Name="PnlAddConfirm" Visibility="Collapsed"
-                            VerticalAlignment="Top" Panel.ZIndex="10"
-                            Background="#2C2419"
-                            BorderBrush="{StaticResource BrushBorder}"
-                            BorderThickness="0,0,0,1">
-                        <StackPanel Orientation="Vertical" Margin="8,5,8,6">
-                            <!-- Row 1: header, type, guard strength, action buttons -->
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                <TextBlock x:Name="TxtAddFromTo" VerticalAlignment="Center"
-                                           Foreground="{StaticResource BrushText}" FontSize="12"
-                                           Margin="0,0,12,0"/>
-                                <Label Content="Type:" Padding="0,0,4,0" VerticalAlignment="Center" FontSize="12"/>
-                                <ComboBox x:Name="CmbAddType" Width="80" Margin="0,0,8,0" TabIndex="21"/>
-                                <Label Content="Guard:" Padding="0,0,4,0" VerticalAlignment="Center" FontSize="12"/>
-                                <ComboBox x:Name="CmbAddGuardStrength" Width="110" Margin="0,0,4,0" TabIndex="22"
-                                          SelectionChanged="CmbAddGuardStrength_SelectionChanged"
-                                          ToolTip="Guard strength preset — tier is inferred from the higher-value connected zone"/>
-                                <TextBox x:Name="TxtAddGuardValueCustom" Width="65" Margin="0,0,4,0" TabIndex="23"
-                                         Visibility="Collapsed"
-                                         Style="{StaticResource HintTextBox}" Tag="value"
-                                         ToolTip="Custom guard value (integer)"/>
-                                <TextBlock x:Name="TxtAddTierLabel" VerticalAlignment="Center"
-                                           Foreground="{StaticResource BrushTextDim}" FontSize="11"
-                                           Margin="0,0,8,0"/>
-                                <Button Content="Add" Click="BtnAddConfirm_Click" Margin="0,0,4,0"
-                                        Style="{StaticResource ToolbarButton}" TabIndex="28"/>
-                                <Button Content="Cancel" Click="BtnAddCancel_Click"
-                                        Style="{StaticResource ToolbarButton}" TabIndex="29"/>
-                            </StackPanel>
-                            <!-- Row 2: guard zone, weekly growth -->
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
-                                <Label Content="Guard Zone:" Padding="0,0,4,0" VerticalAlignment="Center" FontSize="12"/>
-                                <ComboBox x:Name="CmbAddGuardZone" Width="140" Margin="0,0,8,0" TabIndex="24"
-                                          ToolTip="Zone that provides the guard army"/>
-                                <Label Content="Weekly Growth:" Padding="0,0,4,0" VerticalAlignment="Center" FontSize="12"/>
-                                <ComboBox x:Name="CmbAddWeeklyIncrement" Width="120" Margin="0,0,8,0" TabIndex="25"
-                                          ToolTip="How much the guard grows each week"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
                 </Grid>
 
                 <!-- ─── Property panel ─────────────────────────────────────── -->
